@@ -1,0 +1,21 @@
+﻿# 编译产物
+build/
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.d
+
+# IDE / 编辑
+.vscode/
+*.swp
+*.swo
+.cache/
+compile_commands.json
+
+# 系统
+Thumbs.db
+.DS_Store

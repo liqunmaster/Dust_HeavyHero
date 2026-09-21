@@ -1,0 +1,11 @@
+FLASH 使用   W25Q128JVSIQ SPI1  CS为PB02
+JTAG用专用插头
+陀螺仪 BMI088(全新56.3 不是很建议) SPI2 PA24 PA25 片选
+ICM-42688P-HXY     SPI2 
+UART3_RX作为IBUS接口
+UART5 UART6 作为串口转485
+三路PWM
+ 哔哔响
+ Debug灯 1010 
+ IMU加热
+PY03 User Key

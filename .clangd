@@ -1,0 +1,56 @@
+CompileFlags:
+
+  CompilationDatabase: build
+
+  Add:
+    - --target=riscv32-unknown-elf
+
+    - -march=rv32imac
+    - -mabi=ilp32
+    - -mcmodel=medlow
+    - -march=rv32imac_zicsr_zifencei
+
+    - -ferror-limit=0
+
+    - -fno-exceptions
+    - -fno-rtti
+    - -ffunction-sections
+    - -fdata-sections
+
+    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/riscv32-unknown-elf/include/c++/13.2.0
+    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/riscv32-unknown-elf/include/c++/13.2.0/riscv32-unknown-elf
+    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/riscv32-unknown-elf/include
+    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/lib/gcc/riscv32-unknown-elf/13.2.0/include
+    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/lib/gcc/riscv32-unknown-elf/13.2.0/include-fixed
+
+  Remove:
+    - -march=*
+    - -mtune=*
+    - -fno-tree-switch-conversion
+    - -fno-isolate-erroneous-paths-dereference
+    - -fno-schedule-insns*
+    - -fno-inline-functions-called-once
+    - --specs=*
+    - -nostartfiles
+
+Diagnostics:
+  Suppress:
+    - unused-includes
+    - unknown_typename
+    - unknown_typename_suggest
+    - typename_requires_specqual
+    - -Wunused-parameter
+    - -Wmissing-prototypes
+    - -Wsign-compare
+    - -Wmissing-field-initializers
+
+Index:
+  Background: Build
+
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+
+Hover:
+  ShowAKA: Yes

@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "HPM5300_Library")(type "KiCad")(uri "${KIPRJMOD}/CAD资源/HPM_LIB_20251229/HPM_symbols/HPM5300_Library.kicad_sym")(options "")(descr ""))
+  (lib (name "HPM64-6700_Library")(type "KiCad")(uri "${KIPRJMOD}/CAD资源/HPM_LIB_20251229/HPM_symbols/HPM64-6700_Library.kicad_sym")(options "")(descr ""))
+)
