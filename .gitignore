@@ -1,5 +1,4 @@
-﻿# 编译产物
-build/
+﻿build/
 *.o
 *.obj
 *.elf
@@ -9,13 +8,10 @@ build/
 *.lst
 *.d
 
-# IDE / 编辑
-.vscode/
 *.swp
 *.swo
 .cache/
 compile_commands.json
 
-# 系统
 Thumbs.db
 .DS_Store

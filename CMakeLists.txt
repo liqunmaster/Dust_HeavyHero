@@ -1,13 +1,13 @@
-# Copyright (c) 2026 HPMicro
-# SPDX-License-Identifier: BSD-3-Clause
+cmake_minimum_required(VERSION 3.20.0)
 
-cmake_minimum_required(VERSION 3.13)
+set(ZEPHYR_EXTRA_MODULES "D:/MCU/hpm/zephyr_sdk_glue")
 
-find_package(hpm-sdk REQUIRED HINTS $ENV{HPM_SDK_BASE})
+set(HPM_SDK_DIR "D:/MCU/hpm/hpm_sdk" CACHE PATH "")
 
-project(dust_hero)
+list(APPEND BOARD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Board/hpm5361)
 
-sdk_app_src(App/Core/main.c)
-sdk_app_inc(App/Core)
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
-generate_ide_projects()
+project(Dust_HeavyHero)
+
+target_sources(app PRIVATE App/core/main.cpp)

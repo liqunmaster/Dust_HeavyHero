@@ -1,0 +1,16 @@
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y
+# execute in place support
+CONFIG_XIP=y
+
+# pinctrl driver option
+CONFIG_PINCTRL=y
+
+# GPIO driver option
+CONFIG_GPIO=y
+
+# Serial driver option
+CONFIG_SERIAL=y
+
+# Flash option
+CONFIG_FLASH=y

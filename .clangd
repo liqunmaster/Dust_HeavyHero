@@ -23,6 +23,15 @@ CompileFlags:
     - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/lib/gcc/riscv32-unknown-elf/13.2.0/include
     - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/lib/gcc/riscv32-unknown-elf/13.2.0/include-fixed
 
+    - -ID:/MCU/zephyr/zephyrproject/zephyr/include
+    - -ID:/MCU/zephyr/zephyrproject/zephyr/include/zephyr
+    - -IC:/Users/63902/Desktop/GAME/project/Dust/Dust_HeavyHero/build/zephyr/include/generated
+    - -ID:/MCU/hpm/hpm_sdk/drivers/inc
+    - -ID:/MCU/hpm/hpm_sdk/soc/HPM5300
+    - -ID:/MCU/hpm/hpm_sdk/soc/HPM5300/HPM5361
+
+    - -Wno-unknown-argument
+
   Remove:
     - -march=*
     - -mtune=*
@@ -32,6 +41,7 @@ CompileFlags:
     - -fno-inline-functions-called-once
     - --specs=*
     - -nostartfiles
+    - -fno-reorder-functions
 
 Diagnostics:
   Suppress:

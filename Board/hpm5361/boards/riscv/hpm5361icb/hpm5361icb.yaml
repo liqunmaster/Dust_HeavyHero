@@ -1,0 +1,20 @@
+# Copyright 2026 HPMicro
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: hpm5361icb
+name: HPMicro HPM5361 I-Core Board
+type: mcu
+arch: riscv32
+toolchain:
+  - zephyr
+  - cross-compile
+ram: 128
+flash: 16384
+supported:
+  - gpio
+  - uart
+  - dma
+  - usbd
+  - cherryusb
+  - mcan
+vendor: hpmicro

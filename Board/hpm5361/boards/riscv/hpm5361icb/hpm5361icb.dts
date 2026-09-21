@@ -1,0 +1,67 @@
+/*
+ * Copyright 2026 HPMicro
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <hpmicro/hpm5361.dtsi>
+#include "hpm5361icb-pinctrl.dtsi"
+
+/ {
+	model = "HPMicro HPM5361ICB";
+	compatible = "HPMicro,hpm5361icb";
+
+	aliases {
+		led0 = &led_r;
+	};
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,sram = &dlm;
+		zephyr,itcm = &ilm;
+		zephyr,dtcm = &dlm;
+		zephyr,flash = &flash0;
+		zephyr,flash-controller = &xpi0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led_r: led_r {
+			gpios = <&gpioa 2 GPIO_ACTIVE_HIGH>;
+			label = "LEDR";
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&pinmux_uart0>;
+	pinctrl-names = "default";
+};
+
+&gpioa {
+	pinctrl-0 = <&pinmux_gpioa>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&hdma {
+	status = "okay";
+};
+
+&xpi0 {
+	status = "okay";
+	flash0: flash@0 {
+		compatible = "hpmicro,hpmicro-flash", "soc-nv-flash";
+		reg = <0x80000000 DT_SIZE_M(16)>;
+		status = "okay";
+		erase-block-size = <4096>;
+		write-block-size = <1>;
+		nor-cfg-opt-hdr = <0xfcf90001>;
+		nor-cfg-opt-opt0 = <0x05>;
+		nor-cfg-opt-opt1 = <0x1000>;
+	};
+};
