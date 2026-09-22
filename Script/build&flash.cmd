@@ -1,32 +1,35 @@
 @echo off
-rem ============================================================
-rem  Dust_Hero - HPM5361 构建 & 烧录脚本
-rem  使用 SDK 内置 hpm5300evk 板(SOC=HPM5361) + flash_xip
-rem ============================================================
 setlocal
 
-set SDK=C:\Users\63902\Desktop\GAME\project\Dust_Hero
-set HPM_SDK_BASE=D:\MCU\hpm\hpm_sdk
-set GNURISCV_TOOLCHAIN_PATH=D:\MCU\hpm\toolchains\rv32imac_zicsr_zifencei_multilib_b_ext-win
-set PATH=%CD%\build\tools\cmake\bin;D:\MCU\hpm\tools\cmake\bin;D:\MCU\hpm\tools\ninja;D:\MCU\hpm\tools\openocd;%GNURISCV_TOOLCHAIN_PATH%\bin;%PATH%
+set "WEST=D:\MCU\zephyr\zephyrproject\.venv\Scripts\west.exe"
+set "HPM_WORKSPACE=%~dp0.."
+set "HPM_ELF=%HPM_WORKSPACE%\build\zephyr\Dust_HeavyHero.elf"
+set "HPM_OPENOCD=D:\MCU\hpm\tools\openocd\openocd.exe"
+set "HPM_OPENOCD_TCL=D:\MCU\hpm\hpm_sdk\boards\openocd"
 
-cd /d %SDK%
+echo [1/2] Incremental build Zephyr hpm5361icb for on-chip flash ...
+pushd "D:\MCU\zephyr\zephyrproject"
+"%WEST%" build -b hpm5361icb -s "%HPM_WORKSPACE%" -d "%HPM_WORKSPACE%\build"
+set "BUILD_RESULT=%ERRORLEVEL%"
+popd
+if not "%BUILD_RESULT%"=="0" exit /b %BUILD_RESULT%
 
-echo.
-echo [1/3] CMake configure ...
-cmake -G Ninja -B build -DBOARD=hpm5300evk -DHPM_BUILD_TYPE=flash_xip -DCMAKE_EXPORT_COMPILE_COMMANDS=ON .
-if errorlevel 1 ( echo CONFIGURE FAILED & exit /b 1 )
+if not exist "%HPM_ELF%" (
+    echo ERROR: ELF not found: %HPM_ELF%
+    exit /b 1
+)
 
-echo.
-echo [2/3] Build ...
-ninja -C build -j %NUMBER_OF_PROCESSORS%
-if errorlevel 1 ( echo BUILD FAILED & exit /b 1 )
+echo [2/2] Use HPMicro official programmer for HPM5361 on-chip flash ...
+"%HPM_OPENOCD%" ^
+    -s "%HPM_OPENOCD_TCL%" ^
+    -f "%HPM_OPENOCD_TCL%\probes\cmsis_dap.cfg" ^
+    -f "%HPM_OPENOCD_TCL%\soc\hpm5300.cfg" ^
+    -f "%HPM_OPENOCD_TCL%\boards\hpm5300evk.cfg" ^
+    -c "adapter speed 500" ^
+    -c "program {%HPM_ELF%} verify" ^
+    -c "reset run" ^
+    -c "shutdown"
+if errorlevel 1 exit /b 1
 
-echo.
-echo [3/3] Flash over OpenOCD (needs FTDI/HPMicro debug probe connected) ...
-openocd -c "set HPM_SDK_BASE %HPM_SDK_BASE:\=/%; set BOARD hpm5300evk; set PROBE ft2232;" -s %HPM_SDK_BASE%\boards\openocd -c "program build/output/demo.elf verify reset exit"
-if errorlevel 1 ( echo FLASH FAILED - check probe & exit /b 1 )
-
-echo.
-echo DONE. demo.bin flashed.
-endlocal
+echo DONE. HPMicro official programmer verified the firmware in on-chip flash.
+exit /b 0

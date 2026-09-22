@@ -5,13 +5,14 @@
     "cmake.generator": "Ninja",
     "cmake.configureOnOpen": false,
     "cmake.configureArgs": [
-        "-DBOARD=hpm5300evk",
-        "-DHPM_BUILD_TYPE=flash_xip",
+        "-DBOARD=hpm5361icb",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ],
     "cmake.environment": {
-        "HPM_SDK_BASE": "D:/MCU/hpm/hpm_sdk",
-        "GNURISCV_TOOLCHAIN_PATH": "D:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win"
+        "ZEPHYR_BASE": "D:/MCU/zephyr/zephyrproject/zephyr",
+        "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr",
+        "ZEPHYR_SDK_INSTALL_DIR": "D:/MCU/zephyr/zephyr-sdk",
+        "HPM_SDK_DIR": "D:/MCU/hpm/hpm_sdk"
     },
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "search.useIgnoreFiles": false

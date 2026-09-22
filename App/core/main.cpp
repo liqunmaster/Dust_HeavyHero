@@ -1,33 +1,32 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
-#include <zephyr/drivers/gpio.h>
-#include <zephyr/drivers/uart.h>
-#include <zephyr/logging/log.h>
+#include "c620.hpp"
 
-LOG_MODULE_REGISTER(main);
-
-#define LED0_NODE DT_ALIAS(led0)
+static DJI_C620 motor;
 
 int main(void)
 {
-	const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
-	printk("Hello from HPM5361 (Zephyr)!\n");
-
-	int ret = 0;
-#if DT_NODE_EXISTS(LED0_NODE)
-	const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-	ret = gpio_is_ready_dt(&led);
-	if (ret) {
-		ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
-	}
-#endif
-
-	(void)uart;
-	(void)ret;
+	const struct device *can = DEVICE_DT_GET(DT_ALIAS(can0));
+	printk("HPM5361 UART3 alive\n");
+	int ret = motor.init(can, 2000);
+	printk("C620 init result: %d\n", ret);
+	const int init_result = ret;
+	int64_t next_report = 0;
+	enum can_state can_state = CAN_STATE_STOPPED;
+	struct can_bus_err_cnt can_errors = {};
 
 	while (1) {
-		k_sleep(K_SECONDS(1));
-		LOG_INF("tick");
+		if (init_result == 0) {
+			ret = motor.set_current(2000);
+			while (motor.process_feedback(K_NO_WAIT) == 0) {
+			}
+		}
+		if (k_uptime_get() >= next_report) {
+			next_report = k_uptime_get() + 1000;
+			int state_ret = can_get_state(can, &can_state, &can_errors);
+			printk("UART3 heartbeat\n");
+		}
+		k_sleep(K_MSEC(10));
 	}
 	return 0;
 }

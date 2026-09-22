@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 HPMicro
+ * Copyright (c) 2026 HPMicro
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -9,16 +9,16 @@
 #include "hpm5361icb-pinctrl.dtsi"
 
 / {
-	model = "HPMicro HPM5361ICB";
-	compatible = "HPMicro,hpm5361icb";
+	model = "HPMicro HPM5361 custom board";
+	compatible = "hpmicro,hpm5361icb";
 
 	aliases {
-		led0 = &led_r;
+		can0 = &can0;
 	};
 
 	chosen {
-		zephyr,console = &uart0;
-		zephyr,shell-uart = &uart0;
+		zephyr,console = &uart3;
+		zephyr,shell-uart = &uart3;
 		zephyr,sram = &dlm;
 		zephyr,itcm = &ilm;
 		zephyr,dtcm = &dlm;
@@ -26,41 +26,55 @@
 		zephyr,flash-controller = &xpi0;
 	};
 
-	leds {
-		compatible = "gpio-leds";
-		led_r: led_r {
-			gpios = <&gpioa 2 GPIO_ACTIVE_HIGH>;
-			label = "LEDR";
+	soc {
+		uart3: serial@f004c000 {
+			compatible = "hpmicro,hpm-uart";
+			reg = <0xf004c000 0x1000>;
+			interrupts = <16 1>;
+			interrupt-names = "uart";
+			interrupt-parent = <&plic>;
+			clocks = <&clk CLOCK_UART3 CLK_SRC_OSC24M 1>;
+			pinctrl-0 = <&uart3_default>;
+			pinctrl-names = "default";
+			current-speed = <115200>;
+			status = "okay";
+		};
+
+		can0: can@f0280000 {
+			compatible = "hpmicro,hpm-mcan";
+			reg = <0xf0280000 0x4000>;
+			interrupts = <35 1>;
+			interrupt-parent = <&plic>;
+			clk-name = <CLOCK_CAN0>;
+			clk-source = <CLK_SRC_OSC24M>;
+			clk-divider = <1>;
+			bitrate = <1000000>;
+			pinctrl-0 = <&can0_default>;
+			pinctrl-names = "default";
+			status = "okay";
 		};
 	};
-};
-
-&uart0 {
-	status = "okay";
-	current-speed = <115200>;
-	pinctrl-0 = <&pinmux_uart0>;
-	pinctrl-names = "default";
-};
-
-&gpioa {
-	pinctrl-0 = <&pinmux_gpioa>;
-	pinctrl-names = "default";
-	status = "okay";
 };
 
 &hdma {
 	status = "okay";
 };
 
+/*
+ * HPM5361ICB1 contains 1 MiB of in-package flash on XPI0 pin group 1.
+ * The external SPI1/W25Q128 footprint is reserved for logs and is separate.
+ */
 &xpi0 {
 	status = "okay";
 	flash0: flash@0 {
 		compatible = "hpmicro,hpmicro-flash", "soc-nv-flash";
-		reg = <0x80000000 DT_SIZE_M(16)>;
+		reg = <0x80000000 DT_SIZE_M(1)>;
 		status = "okay";
 		erase-block-size = <4096>;
 		write-block-size = <1>;
-		nor-cfg-opt-hdr = <0xfcf90001>;
+		/* Two option words are required so BootROM applies pin group 1. */
+		nor-cfg-opt-hdr = <0xfcf90002>;
+		/* Matches the HPM SDK HPM5300EVK image verified on this board. */
 		nor-cfg-opt-opt0 = <0x05>;
 		nor-cfg-opt-opt1 = <0x1000>;
 	};

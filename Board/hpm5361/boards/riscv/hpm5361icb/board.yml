@@ -1,6 +1,6 @@
 board:
   name: hpm5361icb
-  full_name: HPM5361 I-Core Board
+  full_name: HPM5361 Custom Controller Board
   vendor: hpmicro
   socs:
     - name: hpm5361

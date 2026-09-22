@@ -11,3 +11,7 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(Dust_HeavyHero)
 
 target_sources(app PRIVATE App/core/main.cpp)
+add_subdirectory(Algorithm)
+add_subdirectory(Bsp)
+add_subdirectory(Device/motor/dji/c620)
+zephyr_linker_sources(SECTIONS Bsp/mcan_ram.ld)

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 identifier: hpm5361icb
-name: HPMicro HPM5361 I-Core Board
+name: HPMicro HPM5361 Custom Controller Board
 type: mcu
 arch: riscv32
 toolchain:
@@ -14,7 +14,6 @@ supported:
   - gpio
   - uart
   - dma
-  - usbd
-  - cherryusb
-  - mcan
+  - can
+  - flash
 vendor: hpmicro

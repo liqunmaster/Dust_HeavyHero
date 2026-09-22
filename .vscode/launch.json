@@ -1,0 +1,37 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/Dust_HeavyHero.elf",
+            "servertype": "openocd",
+            "serverpath": "D:/MCU/hpm/tools/openocd/openocd.exe",
+            "searchDir": [
+                "D:/MCU/hpm/tools/openocd/tcl"
+            ],
+            "configFiles": [
+                "${workspaceFolder}/Board/hpm5361/hpm5361_target.cfg"
+            ],
+            "openOCDLaunchCommands": [
+                "init",
+                "hpm_reset_halt"
+            ],
+            "gdbPath": "D:/MCU/zephyr/zephyr-sdk/gnu/riscv64-zephyr-elf/bin/riscv64-zephyr-elf-gdb.exe",
+            "overrideLaunchCommands": [
+                "interpreter-exec console \"monitor hpm_reset_halt\"",
+                "interpreter-exec console \"tbreak main\"",
+                "exec-continue"
+            ],
+            "overrideRestartCommands": [
+                "interpreter-exec console \"monitor hpm_reset_halt\"",
+                "interpreter-exec console \"tbreak main\"",
+                "exec-continue"
+            ],
+            "showDevDebugOutput": "raw",
+            "postLaunchCommands": []
+        }
+    ]
+}
