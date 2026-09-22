@@ -1,0 +1,27 @@
+/ {
+    aliases {
+        dt7-uart = &uart3;
+        vt02-uart = &uart2;
+        vt03-uart = &uart2;
+    };
+};
+
+&uart3 {
+    current-speed = <100000>;
+    data-bits = <8>;
+    stop-bits = "1";
+    parity = "even";
+    dmas = <&hdma 0 0x1a>, <&hdma 1 0x1b>;
+    dma-names = "rx", "tx";
+    status = "okay";
+};
+
+&uart2 {
+    current-speed = <921600>;
+    data-bits = <8>;
+    stop-bits = "1";
+    parity = "none";
+    dmas = <&hdma 2 0x18>, <&hdma 3 0x19>;
+    dma-names = "rx", "tx";
+    status = "okay";
+};

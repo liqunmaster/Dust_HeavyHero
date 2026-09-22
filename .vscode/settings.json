@@ -14,6 +14,16 @@
         "ZEPHYR_SDK_INSTALL_DIR": "D:/MCU/zephyr/zephyr-sdk",
         "HPM_SDK_DIR": "D:/MCU/hpm/hpm_sdk"
     },
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "search.useIgnoreFiles": false
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.path": "D:/MCU/flash/clangd/bin/clangd.exe",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--query-driver=D:/MCU/zephyr/zephyr-sdk/gnu/riscv64-zephyr-elf/bin/riscv64-zephyr-elf-gcc.exe",
+        "--background-index",
+        "--header-insertion=never"
+    ],
+    "search.useIgnoreFiles": false,
+     "workbench.colorCustomizations": {
+        "tree.indentGuidesStroke": "#6200ff"
+    }
 }

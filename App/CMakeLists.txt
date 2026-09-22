@@ -1,0 +1,6 @@
+add_subdirectory(core)
+add_subdirectory(app_booster)
+add_subdirectory(app_chassic)
+add_subdirectory(app_liftup)
+add_subdirectory(app_shoot)
+add_subdirectory(usage)

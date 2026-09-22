@@ -1,4 +1,7 @@
-target_sources(app PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/buffer/double_buffer.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/buffer/ring_buffer.cpp
-)
+add_subdirectory(attitude)
+add_subdirectory(buffer)
+add_subdirectory(filter)
+add_subdirectory(pid)
+add_subdirectory(quaternion)
+add_subdirectory(rls)
+add_subdirectory(trigonometry)

@@ -1,0 +1,25 @@
+#pragma once
+
+#include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef void (*bsp_gpio_irq_callback_t)(void *user_data);
+
+struct bsp_gpio_irq {
+    const struct device *port;
+    gpio_pin_t pin;
+    struct gpio_callback callback;
+    bsp_gpio_irq_callback_t handler;
+    void *user_data;
+};
+
+int bsp_gpio_input_irq_init(struct bsp_gpio_irq *irq, const struct device *port, gpio_pin_t pin, bsp_gpio_irq_callback_t handler, void *user_data);
+int bsp_gpio_input_irq_enable(struct bsp_gpio_irq *irq);
+
+#ifdef __cplusplus
+}
+#endif

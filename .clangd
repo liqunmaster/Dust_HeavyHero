@@ -1,46 +1,12 @@
 CompileFlags:
-
   CompilationDatabase: build
-
-  Add:
-    - --target=riscv32-unknown-elf
-
-    - -march=rv32imac
-    - -mabi=ilp32
-    - -mcmodel=medlow
-    - -march=rv32imac_zicsr_zifencei
-
-    - -ferror-limit=0
-
-    - -fno-exceptions
-    - -fno-rtti
-    - -ffunction-sections
-    - -fdata-sections
-
-    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/riscv32-unknown-elf/include/c++/13.2.0
-    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/riscv32-unknown-elf/include/c++/13.2.0/riscv32-unknown-elf
-    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/riscv32-unknown-elf/include
-    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/lib/gcc/riscv32-unknown-elf/13.2.0/include
-    - -ID:/MCU/hpm/toolchains/rv32imac_zicsr_zifencei_multilib_b_ext-win/lib/gcc/riscv32-unknown-elf/13.2.0/include-fixed
-
-    - -ID:/MCU/zephyr/zephyrproject/zephyr/include
-    - -ID:/MCU/zephyr/zephyrproject/zephyr/include/zephyr
-    - -IC:/Users/63902/Desktop/GAME/project/Dust/Dust_HeavyHero/build/zephyr/include/generated
-    - -ID:/MCU/hpm/hpm_sdk/drivers/inc
-    - -ID:/MCU/hpm/hpm_sdk/soc/HPM5300
-    - -ID:/MCU/hpm/hpm_sdk/soc/HPM5300/HPM5361
-
-    - -Wno-unknown-argument
-
   Remove:
-    - -march=*
-    - -mtune=*
+    - -fno-printf-return-value
     - -fno-tree-switch-conversion
     - -fno-isolate-erroneous-paths-dereference
     - -fno-schedule-insns*
     - -fno-inline-functions-called-once
     - --specs=*
-    - -nostartfiles
     - -fno-reorder-functions
 
 Diagnostics:
@@ -49,10 +15,6 @@ Diagnostics:
     - unknown_typename
     - unknown_typename_suggest
     - typename_requires_specqual
-    - -Wunused-parameter
-    - -Wmissing-prototypes
-    - -Wsign-compare
-    - -Wmissing-field-initializers
 
 Index:
   Background: Build

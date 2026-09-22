@@ -1,0 +1,10 @@
+target_sources(app PRIVATE remote_receiver.cpp)
+target_include_directories(app PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+if(CONFIG_REMOTE_DEVICE_DT7)
+    add_subdirectory(dt7)
+elseif(CONFIG_REMOTE_DEVICE_VT02)
+    add_subdirectory(vt02)
+elseif(CONFIG_REMOTE_DEVICE_VT03)
+    add_subdirectory(vt03)
+endif()

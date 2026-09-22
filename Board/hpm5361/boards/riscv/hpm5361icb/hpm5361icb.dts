@@ -27,6 +27,24 @@
 	};
 
 	soc {
+		ahb_sram: memory@f0400000 {
+			compatible = "zephyr,memory-region";
+			reg = <0xf0400000 DT_SIZE_K(32)>;
+			zephyr,memory-region = "AHB_SRAM";
+		};
+
+		uart2: serial@f0048000 {
+			compatible = "hpmicro,hpm-uart";
+			reg = <0xf0048000 0x1000>;
+			interrupts = <15 1>;
+			interrupt-names = "uart";
+			interrupt-parent = <&plic>;
+			clocks = <&clk CLOCK_UART2 CLK_SRC_OSC24M 1>;
+			pinctrl-0 = <&uart2_default>;
+			pinctrl-names = "default";
+			status = "disabled";
+		};
+
 		uart3: serial@f004c000 {
 			compatible = "hpmicro,hpm-uart";
 			reg = <0xf004c000 0x1000>;
@@ -36,7 +54,19 @@
 			clocks = <&clk CLOCK_UART3 CLK_SRC_OSC24M 1>;
 			pinctrl-0 = <&uart3_default>;
 			pinctrl-names = "default";
-			current-speed = <115200>;
+			status = "disabled";
+		};
+
+		spi2: spi@f0078000 {
+			compatible = "hpmicro,hpm-spi";
+			reg = <0xf0078000 0x4000>;
+			interrupts = <27 1>;
+			interrupt-parent = <&plic>;
+			clocks = <&clk CLOCK_SPI2 CLK_SRC_OSC24M 1>;
+			pinctrl-0 = <&spi2_default>;
+			pinctrl-names = "default";
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "okay";
 		};
 
@@ -54,6 +84,12 @@
 			status = "okay";
 		};
 	};
+};
+
+&gpiob {
+	pinctrl-0 = <&gpiob_default>;
+	pinctrl-names = "default";
+	status = "okay";
 };
 
 &hdma {
