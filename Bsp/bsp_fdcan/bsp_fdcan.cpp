@@ -23,9 +23,6 @@ namespace {
         uint32_t data_bitrate;                                                                          // CAN 数据段波特率
         uint16_t data_sample_point;                                                                     // CAN 数据段采样点
         bool fd_enabled;                                                                                // CAN 模式
-        ring_buffer_t tx_ring;                                                                          // 发送环形缓冲区
-        alignas(fdcan_frame)  uint8_t tx_storage[FDCAN_TX_QUEUE_DEPTH * sizeof(fdcan_frame)];           // 发送缓冲区
-        struct k_work tx_work;                                                                          // 发送 work，取帧/下发回到线程上下文
         fdcan_atomic_statistics statistics;                                                             // 统计信息     
         atomic_t tx_active;                                                                             // 发送活动标志
         atomic_t recovering;                                                                            // 恢复活动标志
@@ -38,9 +35,6 @@ namespace {
     };
 
     static fdcan_context contexts[FDCAN_DEVICE_COUNT];
-
-    static_assert(FDCAN_TX_QUEUE_DEPTH > 0U);
-    static_assert(FDCAN_RX_QUEUE_DEPTH > 0U);
 
     /**
      * @brief 检查设备标识
@@ -115,46 +109,6 @@ namespace {
     }
 
     /**
-     * @brief 向环形队列写入一整帧
-     * 
-     * @param queue 目标环形队列
-     * @param frame 待写入的帧
-     * @return true 成功
-     * @return false 失败
-     */
-    static bool queue_write_frame(ring_buffer_t *queue, const fdcan_frame *frame)
-    {
-        // 检查整帧空间 避免写入半帧
-        if (ring_buffer_free(queue) < sizeof(*frame)) {
-            return false;
-        }
-        return ring_buffer_write(queue, frame, sizeof(*frame)) == sizeof(*frame);
-    }
-
-    /**
-     * @brief 从环形队列读取一整帧
-     *
-     * @param queue 源环形队列
-     * @param frame 读出帧的输出缓冲区
-     * @return true 读取成功
-     * @return false 数据不足一帧 队列内容不变
-     */
-    static bool queue_read_frame(ring_buffer_t *queue, fdcan_frame *frame)
-    {
-        if (ring_buffer_size(queue) < sizeof(*frame)) {
-            return false;
-        }
-        return ring_buffer_read(queue, frame, sizeof(*frame)) == sizeof(*frame);
-    }
-
-    /**
-     * @brief 
-     *
-     * @param 
-     * @return 0 配置合法   -EINVAL 参数非法
-     */
-
-    /**
      * @brief 检查控制器运行配置是否合法
      * 
      * @param config config 待检查的运行配置
@@ -222,13 +176,6 @@ namespace {
     }
 
     /**
-     * @brief 尝试从发送队列取出一帧并交给控制器
-     *
-     * @param context 控制器上下文
-     */
-    static void tx_kick(fdcan_context *context);
-
-    /**
      * @brief 发送完成回调
      *
      * @param device 触发回调的控制器设备
@@ -249,50 +196,6 @@ namespace {
             atomic_inc(&context->statistics.tx_errors);
         }
         atomic_clear(&context->tx_active);
-    }
-
-    /**
-     * @brief 尝试从发送队列取出一帧并交给控制器
-     *
-     * @param context 控制器上下文
-     */
-    static void tx_kick(fdcan_context *context)
-    {
-        if (context == nullptr || !context->initialized || atomic_get(&context->recovering) || !atomic_cas(&context->tx_active, 0, 1)) {
-        return;
-        }
-
-        fdcan_frame frame{};
-        if (!queue_read_frame(&context->tx_ring, &frame)) {
-            atomic_clear(&context->tx_active);
-            // 封闭入队与空闲状态之间的竞争窗口
-            if (!ring_buffer_empty(&context->tx_ring)) {
-                tx_kick(context);
-            }
-            return;
-        }
-
-        struct can_frame can_frame{};
-        to_can_frame(frame, &can_frame);
-        const int ret = can_send(context->device, &can_frame, K_NO_WAIT, tx_complete_callback, context);
-        if (ret != 0) {
-            atomic_inc(&context->statistics.tx_errors);
-            atomic_clear(&context->tx_active);
-            if (!ring_buffer_empty(&context->tx_ring)) {
-                tx_kick(context);
-            }
-        }
-    }
-
-    /**
-     * @brief 发送 work 处理函数
-     * 
-     * @param work work 指针
-     */
-    static void tx_work_handler(struct k_work *work)
-    {
-        fdcan_context *context = CONTAINER_OF(work, fdcan_context, tx_work);
-        tx_kick(context);
     }
 
     /**
@@ -458,25 +361,34 @@ namespace {
             return ret;
         }
 
-        struct can_timing timing{};
-        ret = can_calc_timing(context->device, &timing,
-                              context->bitrate, context->sample_point);
-        if (ret < 0) {
-            return ret;
+        if (context->sample_point == 0U) {
+            ret = can_set_bitrate(context->device, context->bitrate);
+        } else {
+            struct can_timing timing{};
+            ret = can_calc_timing(context->device, &timing,
+                                  context->bitrate, context->sample_point);
+            if (ret < 0) {
+                return ret;
+            }
+            ret = can_set_timing(context->device, &timing);
         }
-        ret = can_set_timing(context->device, &timing);
         if (ret != 0) {
             return ret;
         }
 
         #if defined(CONFIG_CAN_FD_MODE)
         if (context->fd_enabled) {
-            struct can_timing data_timing{};
-            ret = can_calc_timing_data(context->device, &data_timing, context->data_bitrate, context->data_sample_point);
-            if (ret < 0) {
-                return ret;
+            if (context->data_sample_point == 0U) {
+                ret = can_set_bitrate_data(context->device, context->data_bitrate);
+            } else {
+                struct can_timing data_timing{};
+                ret = can_calc_timing_data(context->device, &data_timing,
+                                           context->data_bitrate, context->data_sample_point);
+                if (ret < 0) {
+                    return ret;
+                }
+                ret = can_set_timing_data(context->device, &data_timing);
             }
-            ret = can_set_timing_data(context->device, &data_timing);
             if (ret != 0) {
                 return ret;
             }
@@ -542,8 +454,6 @@ extern "C"{
         context.config             = *config;
         context.standard_filter_id = -1;
         context.extended_filter_id = -1;
-        ring_buffer_init(&context.tx_ring, context.tx_storage, sizeof(context.tx_storage));
-        k_work_init(&context.tx_work, tx_work_handler);
         context.rx_callback        = nullptr;
         context.rx_user_data       = nullptr;
         atomic_clear(&context.tx_active);
@@ -556,12 +466,7 @@ extern "C"{
             context.device = nullptr;
             return ret;
         }
-        ret = can_set_mode(context.device, to_can_mode(context));
-        if (ret != 0) {
-            context.device = nullptr;
-            return ret;
-        }
-        ret = can_set_bitrate(context.device, context.bitrate);
+        ret = apply_configuration(&context);
         if (ret != 0) {
             context.device = nullptr;
             return ret;
@@ -573,6 +478,7 @@ extern "C"{
         }
         ret = can_start(context.device);
         if (ret != 0 && ret != -EALREADY) {
+            remove_default_filters(&context);
             context.device = nullptr;
             return ret;
         }
@@ -604,7 +510,6 @@ extern "C"{
             atomic_clear(&context.recovering);
             return ret;
         }
-        ring_buffer_clear(&context.tx_ring);
         context.rx_callback = nullptr;
         context.rx_user_data = nullptr;
         atomic_clear(&context.tx_active);
@@ -726,7 +631,6 @@ extern "C"{
         }
 
         atomic_set(&context.recovery_state, FDCAN_RECOVERY_CLEARING_TX);
-        ring_buffer_clear(&context.tx_ring);
         atomic_clear(&context.tx_active);
 
         atomic_set(&context.recovery_state, FDCAN_RECOVERY_RECONFIGURING);
@@ -863,11 +767,20 @@ extern "C"{
         return context.initialized && context.device != nullptr && device_is_ready(context.device);
     }
 
+    uint32_t bsp_fdcan_get_data_bitrate(fdcan_device device)
+    {
+        if (!bsp_fdcan_is_ready(device)) {
+            return 0U;
+        }
+        const fdcan_context &context = contexts[device];
+        return context.fd_enabled ? context.data_bitrate : 0U;
+    }
+
     /**
-     * @brief 查询发送环形缓冲区中待发送的帧数
+     * @brief 查询正在发送的帧数
      *
      * @param device 控制器标识
-     * @return size_t 待发送帧数 标识非法时返回 0
+     * @return size_t 正在发送的帧数 标识非法时返回 0
      */
     size_t bsp_fdcan_tx_pending(fdcan_device device)
     {
@@ -875,7 +788,6 @@ extern "C"{
             return 0U;
         }
         const fdcan_context &context = contexts[device];
-        const size_t queued          = ring_buffer_size(&context.tx_ring) / sizeof(fdcan_frame);
-        return queued + (atomic_get(&context.tx_active) ? 1U : 0U);
+        return atomic_get(&context.tx_active) ? 1U : 0U;
     }
 }

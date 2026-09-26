@@ -1,112 +1,37 @@
 #include "c620.hpp"
 
-// | CAN 控制器 | 命令帧组 | 电机槽位 |
-int16_t c620::current_commands_[FDCAN_DEVICE_COUNT][2][4]{};
-
 /**
- * @brief 检查 CAN 控制器编号
+ * @brief 解码 C620 的 8 字节反馈报文
  * 
- * @param device CAN 控制器编号
- * @return true 有效
- * @return false 无效
+ * @param data 反馈报文数据区
+ * @return 解码后的原始反馈数据
  */
-bool c620::valid_device(fdcan_device device)
+C620RxData c620::decode_feedback(const uint8_t *data)
 {
-    return device >= FDCAN_DEVICE_CAN0 && device < FDCAN_DEVICE_COUNT;
-}
-
-/**
- * @brief 检查 C620 ID
- * 
- * @param id C620 ID
- * @return true 有效
- * @return false 无效
- */
-bool c620::valid_id(C620_ID id)
-{
-    const uint8_t value = static_cast<uint8_t>(id);
-    return value >= 1U && value <= 8U;
-}
-
-/**
- * @brief 获取电调所属的命令帧组
- * 
- * @param id C620 ID
- * @return uint8_t 0x200/0x1FF
- */
-uint8_t c620::group_index(C620_ID id)
-{
-    return (static_cast<uint8_t>(id) - 1U) / 4U;
-}
-
-/**
- * @brief 获取电流槽位
- * 
- * @param id C620 ID
- * @return uint8_t 组内槽位编号
- */
-uint8_t c620::slot_index(C620_ID id)
-{
-    return (static_cast<uint8_t>(id) - 1U) % 4U;
-}
-
-/**
- * @brief 读取有符号 16 位整数
- * 
- * @param data C620 反馈帧数据
- * @return int16_t 解包后的有符号整数
- */
-int16_t c620::read_i16(const uint8_t *data)
-{
-    return static_cast<int16_t>((static_cast<uint16_t>(data[0]) << 8U) | data[1]);
-}
-
-/**
- * @brief 读取无符号 16 位整数
- * 
- * @param data C620 反馈帧数据
- * @return uint16_t 解包后的有符号整数
- */
-uint16_t c620::read_u16(const uint8_t *data)
-{
-    return static_cast<uint16_t>((static_cast<uint16_t>(data[0]) << 8U) | data[1]);
-}
-
-/**
- * @brief 初始化 C620 使用的 CAN 总线
- * 
- * @param device CAN 控制器编号
- * @return int 0 表示成功   负值表示失败
- */
-int c620::init_bus(fdcan_device device)
-{
-    if (bsp_fdcan_is_ready(device)) {
-        return 0;
-    }
-
-    const fdcan_config config = {
-        .mode           = FDCAN_MODE_NORMAL,
-        .retransmission = FDCAN_RETRANSMISSION_DISABLED,
+    return {
+        dji_motor::read_u16(&data[0]),
+        dji_motor::signed_value(dji_motor::read_u16(&data[2])),
+        dji_motor::read_u16(&data[4]),
+        data[6],
+        data[7],
     };
-    const int result = bsp_fdcan_init(device, &config);
-    return result    == -EALREADY ? 0 : result;
 }
 
 /**
- * @brief C620 初始化
+ * @brief 初始化 C620 电调及 CAN 控制器
  * 
  * @param device CAN 控制器编号
  * @param id C620 ID
- * @param gear_ratio 减速比
- * @return int 0 表示成功   负值表示失败
+ * @param gear_ratio 电机的减速比
+ * @return 0 表示成功 负值表示错误 
  */
 int c620::init(fdcan_device device, C620_ID id, float gear_ratio)
 {
-    if (!valid_device(device) || !valid_id(id) || !__builtin_isfinite(gear_ratio) || gear_ratio <= 0.0F) {
+    if (!dji_motor::valid_device(device) || !dji_motor::valid_id(id) || !__builtin_isfinite(gear_ratio) || gear_ratio <= 0.0F) {
         return -EINVAL;
     }
 
-    const int result = init_bus(device);
+    const int result = dji_motor::init_bus(device);
     if (result != 0) {
         return result;
     }
@@ -114,39 +39,24 @@ int c620::init(fdcan_device device, C620_ID id, float gear_ratio)
     device_      = device;
     id_          = id;
     gear_ratio_  = gear_ratio;
+    const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
+    rx_data_             = {};
+    data_                = {};
+    total_encoder_       = 0;
+    encoder_initialized_ = false;
+    k_spin_unlock(&feedback_lock_, key);
+    atomic_set(&feedback_count_, 0);
+    atomic_set(&last_feedback_ms_, 0);
+    atomic_set(&has_feedback_, 0);
     initialized_ = true;
     return 0;
 }
 
 /**
- * @brief 按组发送 C620 电流指令
+ * @brief 更新 C620 的目标电流
  * 
- * @param device CAN 控制器编号
- * @param group 命令帧组
- * @return int 0 表示成功   负值表示失败
- */
-int c620::transmit_group(fdcan_device device, uint8_t group)
-{
-    fdcan_frame frame{};
-    frame.id = group     == 0U ? 0x200U : 0x1FFU;
-    frame.id_type        = FDCAN_ID_STANDARD;
-    frame.protocol       = FDCAN_PROTOCOL_CLASSIC;
-    frame.bitrate_switch = FDCAN_BRS_DISABLED;
-    frame.length         = 8U;
-
-    for (uint8_t slot = 0U; slot < 4U; ++slot) {
-        const uint16_t command     = static_cast<uint16_t>(current_commands_[device][group][slot]);
-        frame.data[slot * 2U]      = static_cast<uint8_t>(command >> 8U);
-        frame.data[slot * 2U + 1U] = static_cast<uint8_t>(command);
-    }
-    return bsp_fdcan_transmit(device, &frame, FDCAN_NO_WAIT);
-}
-
-/**
- * @brief 设置 C620 电流
- * 
- * @param current C620 电流
- * @return int 0 表示成功   负值表示失败
+ * @param current 目标电流，单位 A
+ * @return 0 表示成功 负值表示错误
  */
 int c620::set_current(float current)
 {
@@ -158,141 +68,130 @@ int c620::set_current(float current)
     }
 
     const int16_t command = math::current_to_raw(current, current_limit_, current_raw_limit_);
-    current_commands_[device_][group_index(id_)][slot_index(id_)] = command;
-    target_current_amp_   = math::raw_to_current(command, current_raw_limit_, current_limit_);
-    return 0;
+    return dji_motor::set(device_, static_cast<uint8_t>(id_), command);
 }
 
 /**
- * @brief 发送 C620 电流
+ * @brief 发送当前电调所在组的电流控制报文
  * 
- * @return int 0 表示成功   负值表示失败
+ * @return 0 表示成功 负值表示错误
  */
 int c620::transmit()
 {
     if (!initialized_) {
         return -ENODEV;
     }
-    return transmit_group(device_, group_index(id_));
+    return dji_motor::transmit(device_, static_cast<uint8_t>(id_));
 }
 
 /**
- * @brief 解析校验过的 C620 反馈帧
+ * @brief 更新编码器累计值和物理量反馈
  * 
- * @param data C620 反馈帧数据
+ * @param data 已校验的 8 字节反馈数据
  */
 void c620::unpack_feedback(const uint8_t *data)
 {
-    const uint16_t new_encoder = read_u16(&data[0]);
+    const C620RxData next = decode_feedback(data);
+    const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
 
     if (!encoder_initialized_) {
-        total_encoder_         = new_encoder;
-        encoder_initialized_   = true;
+        total_encoder_ = next.encoder;
+        encoder_initialized_ = true;
     } else {
-        int32_t delta = static_cast<int32_t>(new_encoder) - encoder_;
+        int32_t delta = static_cast<int32_t>(next.encoder) - static_cast<int32_t>(data_.pre_encoder);
 
-        // 将跨越 8191/0 边界的差值还原为最短方向增量。
         if (delta > encoder_resolution_ / 2) {
             delta -= encoder_resolution_;
+            --data_.total_round;
         } else if (delta < -encoder_resolution_ / 2) {
             delta += encoder_resolution_;
+            ++data_.total_round;
         }
         total_encoder_ += delta;
     }
 
-    encoder_       = new_encoder;
-    omega_rpm_     = read_i16(&data[2]);
-    current_raw_   = read_i16(&data[4]);
-    temperature_c_ = data[6];
-    error_         = data[7];
+    rx_data_              = next;
+    data_.pre_encoder     = next.encoder;
+    data_.total_encoder   = total_encoder_ > INT32_MAX ? INT32_MAX : total_encoder_ < INT32_MIN ? INT32_MIN  : static_cast<int32_t>(total_encoder_);
 
-    current_amp_  = math::raw_to_current(current_raw_, current_raw_limit_, current_limit_);
-    omega_rad_s_  = math::rpm_to_radian_per_second(omega_rpm_, gear_ratio_);
-    angle_rad_    = math::encoder_to_radian(total_encoder_, encoder_resolution_, gear_ratio_);
-    angle_degree_ = math::encoder_to_degree(total_encoder_, encoder_resolution_, gear_ratio_);
+    const int16_t current = dji_motor::signed_value(next.current);
+    data_.now_current     = math::raw_to_current(current, current_raw_limit_, current_limit_);
+    data_.now_omega       = math::rpm_to_radian_per_second(next.omega, gear_ratio_);
+    data_.now_angle       = math::encoder_to_radian(total_encoder_, encoder_resolution_, gear_ratio_);
+    data_.now_temperature = static_cast<float>(next.temperature);
+    k_spin_unlock(&feedback_lock_, key);
 }
 
- /**
-  * @brief 校验并处理当前电机对应的 C620 反馈帧
-  * 
-  * @param frame C620 反馈帧
-  * @return int 0 表示成功   负值表示失败
-  */
+/**
+ * @brief 校验并解析当前 C620 的反馈帧
+ *
+ * @param frame CAN 接收帧
+ * @return 0 表示已处理 负值表示未匹配或报文错误
+ */
 int c620::process_feedback(const fdcan_frame &frame)
 {
     if (!initialized_) {
         return -ENODEV;
     }
-    if (frame.id != 0x200U + static_cast<uint8_t>(id_)) {
-        return -ENOMSG;
-    }
-    if (frame.id_type != FDCAN_ID_STANDARD || frame.protocol != FDCAN_PROTOCOL_CLASSIC || frame.length != 8U) {
-        return -EBADMSG;
+    const int result = dji_motor::validate_feedback(frame, static_cast<uint8_t>(id_));
+    if (result != 0) {
+        return result;
     }
 
     unpack_feedback(frame.data);
+    atomic_set(&last_feedback_ms_, static_cast<atomic_val_t>(k_uptime_get_32()));
+    atomic_inc(&feedback_count_);
+    atomic_set(&has_feedback_, 1);
     return 0;
 }
 
 /**
- * @brief 获取 C620 反馈电流 A
+ * @brief 判断电调是否在超时时间内反馈过数据
  * 
- * @return float 反馈电流 A
+ * @param timeout_ms 反馈超时时间
+ * @return true 在线 false 尚未收到反馈或已超时
  */
-float c620::get_current() const { return current_amp_; }
+bool c620::is_online(uint32_t timeout_ms) const
+{
+    if (atomic_get(&has_feedback_) == 0) {
+        return false;
+    }
+    const uint32_t last = static_cast<uint32_t>(atomic_get(&last_feedback_ms_));
+    return static_cast<uint32_t>(k_uptime_get_32() - last) <= timeout_ms;
+}
 
 /**
- * @brief 获取 C620 反馈转速 rpm
+ * @brief 获取累计有效反馈帧数
  * 
- * @return int16_t 反馈转速 rpm
+ * @return 累计有效反馈帧数
  */
-int16_t c620::get_omega() const { return omega_rpm_; }
+uint32_t c620::get_feedback_count() const
+{
+    return static_cast<uint32_t>(atomic_get(&feedback_count_));
+}
 
 /**
- * @brief 获取 C620 反馈转速 rad/s
+ * @brief 获取最近一帧原始反馈
  * 
- * @return float 反馈转速 rad/s
+ * @return 受锁保护的原始反馈快照
  */
-float c620::get_omega_rad_s() const { return omega_rad_s_; }
+C620RxData c620::get_rx_data() const
+{
+    const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
+    const C620RxData snapshot = rx_data_;
+    k_spin_unlock(&feedback_lock_, key);
+    return snapshot;
+}
 
 /**
- * @brief 获取 C620 编码器计数
+ * @brief 获取换算后的电机状态
  * 
- * @return int64_t 编码器计数
+ * @return 受锁保护的电机状态快照
  */
-int64_t c620::get_total_encoder() const { return total_encoder_; }
-
-/**
- * @brief 获取 C620 输出轴角度 rad
- * 
- * @return float 输出轴角度 rad
- */
-float c620::get_angle() const { return angle_rad_; }
-
-/**
- * @brief 获取 C620 输出轴角度 degree
- * 
- * @return float 输出轴角度 degree
- */
-float c620::get_angle_degree() const { return angle_degree_; }
-
-/**
- * @brief 获取 C620 单圈转子编码器值
- * 
- * @return uint16_t 编码器值
- */
-uint16_t c620::get_encoder() const { return encoder_; }
-
-/**
- * @brief 获取 C620 电机温度 ℃
- * 
- * @return uint8_t 电机温度 ℃
- */
-uint8_t c620::get_temperature() const { return temperature_c_; }
-
-/**
- * @brief 获取 C620 错误码
- * 
- * @return uint8_t 错误码
- */
-uint8_t c620::get_error() const { return error_; }
+C620Data c620::get_data() const
+{
+    const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
+    const C620Data snapshot = data_;
+    k_spin_unlock(&feedback_lock_, key);
+    return snapshot;
+}

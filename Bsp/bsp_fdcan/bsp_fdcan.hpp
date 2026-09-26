@@ -12,15 +12,10 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
-#include "ring_buffer.hpp"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// 发送和接收环形队
-#define FDCAN_TX_QUEUE_DEPTH     32U
-#define FDCAN_RX_QUEUE_DEPTH     32U
 #define FDCAN_MAX_DATA_LENGTH    64U
 
 // 超时时间
@@ -116,12 +111,12 @@ typedef struct {
 
 // CAN 收发与恢复统计信息
 typedef struct {
-    uint32_t tx_queued;                           // 累计进入发送队列的帧数
+    uint32_t tx_queued;                           // 累计成功提交给 CAN 驱动的帧数
     uint32_t tx_completed;                        // 累计发送完成的帧数
     uint32_t tx_dropped;                          // 累计丢弃的发送帧数
     uint32_t tx_errors;                           // 累计发送错误帧数
-    uint32_t rx_received;                         // 累计进入接收队列的帧数
-    uint32_t rx_dropped;                          // 累计丢弃的接收帧数
+    uint32_t rx_received;                         // 累计收到的帧数
+    uint32_t rx_dropped;                          // 预留接收丢弃计数
     uint32_t recovery_succeeded;                  // BUS-OFF 恢复成功次数
     uint32_t recovery_failed;                     // BUS-OFF 恢复失败次数
 } fdcan_statistics;
@@ -147,6 +142,8 @@ void bsp_fdcan_get_statistics(fdcan_device device, fdcan_statistics *statistics)
 void bsp_fdcan_clear_statistics(fdcan_device device);
 
 bool bsp_fdcan_is_ready(fdcan_device device);
+
+uint32_t bsp_fdcan_get_data_bitrate(fdcan_device device);
 
 size_t bsp_fdcan_tx_pending(fdcan_device device);
 

@@ -1,14 +1,19 @@
 #pragma once
 
 #include <errno.h>
+#include <limits.h>
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
+
 #include "bsp_fdcan.hpp"
+#include "dji_motor.hpp"
 #include "math.h"
 
 // C620 电调 ID
 enum C620_ID {
-    C620_ID_0x201 = 1,          // 反馈 ID 0x201  
+    C620_ID_0x201 = 1,          // 反馈 ID 0x201
     C620_ID_0x202 = 2,          // 反馈 ID 0x202
     C620_ID_0x203 = 3,          // 反馈 ID 0x203
     C620_ID_0x204 = 4,          // 反馈 ID 0x204
@@ -16,6 +21,24 @@ enum C620_ID {
     C620_ID_0x206 = 6,          // 反馈 ID 0x206
     C620_ID_0x207 = 7,          // 反馈 ID 0x207
     C620_ID_0x208 = 8,          // 反馈 ID 0x208
+};
+
+struct C620RxData {
+    uint16_t encoder;           // 转子机械角度原始值
+    int16_t  omega;             // 转子转速 单位 rpm
+    uint16_t current;           // 实际电流的 16 位补码位模式
+    uint8_t  temperature;       // 电机温度 单位摄氏度
+    uint8_t  error;             // 电调错误码
+} __attribute__((packed));
+
+struct C620Data {
+    float    now_angle;         // 输出轴累计角度 单位 rad
+    float    now_omega;         // 输出轴角速度 单位 rad/s
+    float    now_current;       // 实际电流 单位 A
+    float    now_temperature;   // 电机温度 单位摄氏度
+    uint32_t pre_encoder;       // 上一帧转子编码器值
+    int32_t  total_encoder;     // 转子累计编码器计数
+    int32_t  total_round;       // 转子编码器累计跨圈次数
 };
 
 class c620 {
@@ -29,37 +52,20 @@ public:
 
     int process_feedback(const fdcan_frame &frame);
 
-    float get_current() const;
+    bool is_online(uint32_t timeout_ms = 100U) const;
 
-    int16_t get_omega() const;
+    uint32_t get_feedback_count() const;
 
-    float get_omega_rad_s() const;
+    C620RxData get_rx_data() const;
 
-    int64_t get_total_encoder() const;
-
-    float get_angle() const;
-
-    float get_angle_degree() const;
-
-    uint16_t get_encoder() const;
-
-    uint8_t get_temperature() const;
-
-    uint8_t get_error() const;
+    C620Data get_data() const;
 
 private:
     static constexpr uint16_t encoder_resolution_ = 8192U;     // 每圈编码器计数
     static constexpr int16_t  current_raw_limit_  = 16384;     // 电流指令满量程
     static constexpr float    current_limit_      = 20.0F;     // 电流物理量满量程
 
-    static bool     valid_device(fdcan_device device);
-    static bool     valid_id(C620_ID id);
-    static uint8_t  group_index(C620_ID id);
-    static uint8_t  slot_index(C620_ID id);
-    static int16_t  read_i16(const uint8_t *data);
-    static uint16_t read_u16(const uint8_t *data);
-    static int      init_bus(fdcan_device device);
-    static int      transmit_group(fdcan_device device, uint8_t group);
+    static C620RxData decode_feedback(const uint8_t *data);
 
     void unpack_feedback(const uint8_t *data); 
 
@@ -67,18 +73,13 @@ private:
     C620_ID        id_                  = C620_ID_0x201;       // 电调 ID
     float          gear_ratio_          = 1.0F;                // 减速比
     bool           initialized_         = false;               // 初始化完成标志
-    float          target_current_amp_  = 0.0F;                // 已下发电流 A
-    uint16_t       encoder_             = 0U;                  // 单圈编码器值 0 - 8191
-    int64_t        total_encoder_       = 0;                   // 累计编码器值
-    int16_t        omega_rpm_           = 0;                   // 电机转子转速 rpm
-    int16_t        current_raw_         = 0;                   // 反馈电流原始值
-    float          current_amp_         = 0.0F;                // 反馈电流 A
-    float          omega_rad_s_         = 0.0F;                // 输出轴角速度 rad/s
-    float          angle_rad_           = 0.0F;                // 输出轴累计角度 rad
-    float          angle_degree_        = 0.0F;                // 输出轴累计角度 degree
-    uint8_t        temperature_c_       = 0U;                  // 电机温度 摄氏度
-    uint8_t        error_               = 0U;                  // 电机错误码
+    C620RxData     rx_data_{};                                 // 最近一次有效反馈
+    C620Data       data_{};                                    // 换算后的电机数据
+    int64_t        total_encoder_       = 0;                   // 完整累计编码器值
     bool           encoder_initialized_ = false;               // 是否已收到首个编码器值
+    mutable struct k_spinlock feedback_lock_{};                // 反馈数据访问锁
+    atomic_t       feedback_count_{};                          // 累计有效反馈帧数
+    atomic_t       last_feedback_ms_{};                        // 最近一次有效反馈时间
+    atomic_t       has_feedback_{};                            // 是否收到过有效反馈
 
-    static int16_t current_commands_[FDCAN_DEVICE_COUNT][2][4];
 };

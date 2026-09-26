@@ -12,6 +12,11 @@
 #include <hpmicro/hpm5361.dtsi>
 #include "hpm5361icb-pinctrl.dtsi"
 
+/* Zephyr 4.4 uses isa-base/isa-extensions; remove HPM's legacy alias. */
+&cpu0 {
+	/delete-property/ riscv,isa;
+};
+
 / {
 	model = "Dust HeavyHero HPM5361ICB";
 	compatible = "hpmicro,hpm5361icb";
