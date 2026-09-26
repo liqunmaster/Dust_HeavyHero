@@ -4,10 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-/**
- * @brief 双缓冲控制结构
- * 
- */
+// 双缓冲控制结构
 struct double_buffer_t {
     uint8_t *storage[2]{};
     size_t size{};

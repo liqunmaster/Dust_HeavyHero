@@ -1,4 +1,3 @@
-add_subdirectory(imu)
 add_subdirectory(motor)
 add_subdirectory(powermeter)
 add_subdirectory(remote)

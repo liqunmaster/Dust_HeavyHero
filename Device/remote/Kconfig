@@ -1,10 +1,14 @@
-choice REMOTE_DEVICE_TYPE
-    prompt "Remote device"
-    default REMOTE_DEVICE_DT7
+choice REMOTE_DEVICE
+	prompt "Remote control device"
+	default REMOTE_DEVICE_DT7
+
 config REMOTE_DEVICE_DT7
-    bool "DT7 on UART3"
+	bool "DT7"
+
 config REMOTE_DEVICE_VT02
-    bool "VT02 on UART2"
+	bool "VT02"
+
 config REMOTE_DEVICE_VT03
-    bool "VT03 on UART2"
+	bool "VT03"
+
 endchoice

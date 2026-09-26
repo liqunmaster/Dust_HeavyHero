@@ -5,7 +5,7 @@
  * 
  * @param buffer 环形缓冲控制结构
  * @param storage 用于保存数据的字节数组
- * @param capacity storage的容量，单位为字节
+ * @param capacity storage的容量
  */
 void ring_buffer_init(ring_buffer_t *buffer, void *storage, size_t capacity)
 {
@@ -23,7 +23,7 @@ void ring_buffer_init(ring_buffer_t *buffer, void *storage, size_t capacity)
  * @brief 获取环形缓冲中当前已保存的字节数
  * 
  * @param buffer 环形缓冲控制结构
- * @return 当前已保存的字节数,参数无效时返回0
+ * @return size_t 当前已保存的字节数
  */
 size_t ring_buffer_size(const ring_buffer_t *buffer)
 {
@@ -40,7 +40,7 @@ size_t ring_buffer_size(const ring_buffer_t *buffer)
  * @brief 获取环形缓冲当前剩余的可写字节数
  * 
  * @param buffer 环形缓冲控制结构
- * @return 剩余可写字节数,buffer为空时返回0
+ * @return size_t 剩余可写字节数
  */
 size_t ring_buffer_free(const ring_buffer_t *buffer)
 {
@@ -53,12 +53,12 @@ size_t ring_buffer_free(const ring_buffer_t *buffer)
 }
 
 /**
- * @brief 按先进先出顺序向环形缓冲写入字节数据
+ * @brief 按FIFO顺序向环形缓冲写入字节数据
  * 
  * @param buffer 环形缓冲控制结构
  * @param data 待写入数据的地址
  * @param length 请求写入的字节数
- * @return 实际写入的字节数,空间不足时可能小于length
+ * @return size_t 实际写入的字节数
  */
 size_t ring_buffer_write(ring_buffer_t *buffer, const void *data, size_t length)
 {
@@ -81,12 +81,12 @@ size_t ring_buffer_write(ring_buffer_t *buffer, const void *data, size_t length)
 }
 
 /**
- * @brief 按先进先出顺序从环形缓冲读取并移除字节数据
+ * @brief 按FIFO顺序从环形缓冲读取并移除字节数据
  * 
  * @param buffer 环形缓冲控制结构
  * @param data 接收数据的目标地址
  * @param length 请求读取的字节数
- * @return 实际读取的字节数,数据不足时可能小于length
+ * @return size_t 实际读取的字节数
  */
 size_t ring_buffer_read(ring_buffer_t *buffer, void *data, size_t length)
 {

@@ -17,6 +17,7 @@ typedef struct {
     void *rx_user_data;
     uint8_t rx_buffers[2][BSP_UART_RX_BUFFER_SIZE] __aligned(4);
     uint8_t tx_buffer[BSP_UART_TX_ITEM_SIZE] __aligned(4);
+    struct k_sem tx_available;
     atomic_t tx_busy;
     bool initialized;
 } bsp_uart_t;

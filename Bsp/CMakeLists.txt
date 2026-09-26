@@ -1,6 +1,6 @@
 add_subdirectory_ifdef(CONFIG_CAN bsp_fdcan)
+add_subdirectory(bsp_spi)
 add_subdirectory(bsp_gpio)
 add_subdirectory(bsp_pwm)
-add_subdirectory(bsp_spi)
 add_subdirectory(bsp_uart)
 add_subdirectory(bsp_usb)

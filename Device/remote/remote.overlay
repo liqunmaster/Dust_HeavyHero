@@ -1,17 +1,27 @@
 / {
     aliases {
-        dt7-uart = &uart3;
+        dt7-uart = &uart4;
         vt02-uart = &uart2;
         vt03-uart = &uart2;
     };
 };
 
 &uart3 {
+    current-speed = <115200>;
+    data-bits = <8>;
+    stop-bits = "1";
+    parity = "none";
+    dmas = <&hdma 0 0x1a>, <&hdma 1 0x1b>;
+    dma-names = "rx", "tx";
+    status = "okay";
+};
+
+&uart4 {
     current-speed = <100000>;
     data-bits = <8>;
     stop-bits = "1";
     parity = "even";
-    dmas = <&hdma 0 0x1a>, <&hdma 1 0x1b>;
+    dmas = <&hdma 4 0x1c>, <&hdma 5 0x1d>;
     dma-names = "rx", "tx";
     status = "okay";
 };

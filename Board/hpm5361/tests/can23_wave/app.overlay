@@ -1,0 +1,17 @@
+&can0 {
+	status = "disabled";
+};
+
+&can1 {
+	status = "disabled";
+};
+
+&can2 {
+	bitrate = <1000000>;
+	status = "okay";
+};
+
+&can3 {
+	bitrate = <1000000>;
+	status = "okay";
+};

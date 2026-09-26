@@ -26,7 +26,7 @@ void double_buffer_init(double_buffer_t *buffer, void *first, void *second, size
  * @brief 获取当前可写缓冲区的地址
  * 
  * @param buffer 双缓冲控制结构
- * @return 当前可写缓冲区地址,buffer为空时返回nullptr
+ * @return void* 当前可写缓冲区地址
  */
 void *double_buffer_write_array(double_buffer_t *buffer)
 {
@@ -56,7 +56,7 @@ void double_buffer_publish(double_buffer_t *buffer)
  * @brief 获取最近一次已发布缓冲区的只读地址
  * 
  * @param buffer 双缓冲控制结构
- * @return 最近发布的缓冲区地址,buffer为空时返回nullptr
+ * @return const void* 最近发布的缓冲区地址
  */
 const void *double_buffer_read_array(const double_buffer_t *buffer)
 {

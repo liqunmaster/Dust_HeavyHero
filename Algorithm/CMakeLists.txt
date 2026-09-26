@@ -1,7 +1,3 @@
-add_subdirectory(attitude)
+target_include_directories(app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(buffer)
-add_subdirectory(filter)
-add_subdirectory(pid)
-add_subdirectory(quaternion)
-add_subdirectory(rls)
-add_subdirectory(trigonometry)

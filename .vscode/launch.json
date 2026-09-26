@@ -10,26 +10,19 @@
             "servertype": "openocd",
             "serverpath": "D:/MCU/hpm/tools/openocd/openocd.exe",
             "searchDir": [
-                "D:/MCU/hpm/tools/openocd/tcl"
+                "D:/MCU/hpm/tools/openocd/tcl",
+                "D:/MCU/hpm/hpm_sdk/boards/openocd"
             ],
             "configFiles": [
-                "${workspaceFolder}/Board/hpm5361/hpm5361_target.cfg"
+                "D:/MCU/hpm/hpm_sdk/boards/openocd/probes/cmsis_dap.cfg",
+                "D:/MCU/hpm/hpm_sdk/boards/openocd/soc/hpm5300.cfg",
+                "D:/MCU/hpm/hpm_sdk/boards/openocd/boards/hpm5300evk.cfg"
             ],
             "openOCDLaunchCommands": [
-                "init",
-                "hpm_reset_halt"
+                "adapter speed 500"
             ],
             "gdbPath": "D:/MCU/zephyr/zephyr-sdk/gnu/riscv64-zephyr-elf/bin/riscv64-zephyr-elf-gdb.exe",
-            "overrideLaunchCommands": [
-                "interpreter-exec console \"monitor hpm_reset_halt\"",
-                "interpreter-exec console \"tbreak main\"",
-                "exec-continue"
-            ],
-            "overrideRestartCommands": [
-                "interpreter-exec console \"monitor hpm_reset_halt\"",
-                "interpreter-exec console \"tbreak main\"",
-                "exec-continue"
-            ],
+            "runToEntryPoint": "main",
             "showDevDebugOutput": "raw",
             "postLaunchCommands": []
         }

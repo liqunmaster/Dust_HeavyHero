@@ -1,2 +1,0 @@
-target_sources(app PRIVATE app_chassic.cpp)
-target_include_directories(app PUBLIC ${CMAKE_CURRENT_LIST_DIR})
