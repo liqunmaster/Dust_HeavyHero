@@ -6,6 +6,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "bsp_fdcan.hpp"
 
@@ -68,8 +69,6 @@ public:
 
     int process_feedback(const fdcan_frame &frame);
 
-    bool is_online(uint32_t timeout_ms = 100U) const;
-
     uint32_t get_feedback_count() const;
 
     DmRxData get_rx_data() const;
@@ -125,7 +124,4 @@ private:
 
     atomic_t feedback_count_{};
 
-    atomic_t last_feedback_ms_{};
-
-    atomic_t has_feedback_{};
 };

@@ -1,7 +1,7 @@
 #include "bsp_fdcan.hpp"
 
 namespace {
-    // 控制器统计信息
+    // FDCAN 控制器统计信息
     struct fdcan_atomic_statistics {
         atomic_t tx_queued;                                                                             // 累计发送队列帧数
         atomic_t tx_completed;                                                                          // 累计发送完成帧数
@@ -13,7 +13,7 @@ namespace {
         atomic_t recovery_failed;                                                                       // 累计恢复失败次数
     };
 
-    // 控制器运行上下文
+    // FDCAN 控制器运行上下文
     struct fdcan_context {
         fdcan_device id;                                                                                // 控制器标识
         const struct device *device;                                                                    // 控制器设备
@@ -74,7 +74,7 @@ namespace {
             return DEVICE_DT_GET(DT_NODELABEL(can3));
         #endif
         default:
-        return nullptr;
+            return nullptr;
         }
     }
 

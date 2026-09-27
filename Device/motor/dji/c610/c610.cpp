@@ -8,13 +8,14 @@
  */
 C610RxData c610::decode_feedback(const uint8_t *data)
 {
-    return {
-        dji_motor::read_u16(&data[0]),
-        dji_motor::signed_value(dji_motor::read_u16(&data[2])),
-        dji_motor::read_u16(&data[4]),
-        data[6],
-        data[7],
-    };
+    const uint64_t frame = sys_get_be64(data);
+    C610RxData decoded{};
+    decoded.encoder      = static_cast<uint16_t>((frame >> 48U) & 0xFFFFU);
+    decoded.omega        = dji_motor::signed_value(static_cast<uint16_t>((frame >> 32U) & 0xFFFFU));
+    decoded.current      = static_cast<uint16_t>((frame >> 16U) & 0xFFFFU);
+    decoded.reserved     = static_cast<uint8_t>((frame >> 8U) & 0xFFU);
+    decoded.error        = static_cast<uint8_t>(frame & 0xFFU);
+    return decoded;
 }
 
 /**
@@ -46,8 +47,6 @@ int c610::init(fdcan_device device, C610_ID id, float gear_ratio)
     encoder_initialized_ = false;
     k_spin_unlock(&feedback_lock_, key);
     atomic_set(&feedback_count_, 0);
-    atomic_set(&last_feedback_ms_, 0);
-    atomic_set(&has_feedback_, 0);
     initialized_ = true;
     return 0;
 }
@@ -136,32 +135,15 @@ int c610::process_feedback(const fdcan_frame &frame)
         return result;
     }
 
-    unpack_feedback(frame.data);
-    atomic_set(&last_feedback_ms_, static_cast<atomic_val_t>(k_uptime_get_32()));
     atomic_inc(&feedback_count_);
-    atomic_set(&has_feedback_, 1);
+    unpack_feedback(frame.data);
     return 0;
 }
 
 /**
- * @brief 判断电调是否在超时时间内反馈过数据
+ * @brief 获取累计收到的反馈帧数
  *
- * @param timeout_ms 反馈超时时间
- * @return true 在线 false 尚未收到反馈或已超时
- */
-bool c610::is_online(uint32_t timeout_ms) const
-{
-    if (atomic_get(&has_feedback_) == 0) {
-        return false;
-    }
-    const uint32_t last = static_cast<uint32_t>(atomic_get(&last_feedback_ms_));
-    return static_cast<uint32_t>(k_uptime_get_32() - last) <= timeout_ms;
-}
-
-/**
- * @brief 获取累计有效反馈帧数
- *
- * @return 累计有效反馈帧数
+ * @return 累计收到的反馈帧数
  */
 uint32_t c610::get_feedback_count() const
 {

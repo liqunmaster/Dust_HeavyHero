@@ -6,6 +6,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "bsp_fdcan.hpp"
 #include "dji_motor.hpp"
@@ -50,8 +51,6 @@ public:
 
     int process_feedback(const fdcan_frame &frame);
 
-    bool is_online(uint32_t timeout_ms = 100U) const;
-
     uint32_t get_feedback_count() const;
 
     C610RxData get_rx_data() const;
@@ -76,7 +75,5 @@ private:
     int64_t        total_encoder_       = 0;                  // 未截断的累计编码器计数
     bool           encoder_initialized_ = false;              // 是否已收到首帧编码器值
     mutable struct k_spinlock feedback_lock_{};               // 反馈数据访问锁
-    atomic_t       feedback_count_{};                         // 累计有效反馈帧数
-    atomic_t       last_feedback_ms_{};                       // 最近一次有效反馈时间
-    atomic_t       has_feedback_{};                           // 是否收到过有效反馈
+    atomic_t       feedback_count_{};                         // 累计收到的反馈帧数
 };

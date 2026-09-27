@@ -1,6 +1,9 @@
 #pragma once
 
+#include <errno.h>
 #include <stdint.h>
+
+#include <zephyr/sys/byteorder.h>
 
 #include "bsp_fdcan.hpp"
 

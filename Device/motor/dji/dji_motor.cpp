@@ -1,7 +1,5 @@
 #include "dji_motor.hpp"
 
-#include <errno.h>
-
 namespace {
     int16_t commands[FDCAN_DEVICE_COUNT][2][4]{};
     struct k_spinlock commands_lock{};
@@ -143,10 +141,10 @@ int dji_motor::transmit(fdcan_device device, uint8_t motor_id)
     frame.bitrate_switch = FDCAN_BRS_DISABLED;
     frame.length = 8U;
 
-    for (uint8_t slot = 0U; slot < 4U; ++slot) {
-        const uint16_t value = static_cast<uint16_t>(snapshot[slot]);
-        frame.data[slot * 2U] = static_cast<uint8_t>(value >> 8U);
-        frame.data[slot * 2U + 1U] = static_cast<uint8_t>(value);
-    }
+    const uint64_t payload = (static_cast<uint64_t>(static_cast<uint16_t>(snapshot[0])) << 48U) |
+                             (static_cast<uint64_t>(static_cast<uint16_t>(snapshot[1])) << 32U) |
+                             (static_cast<uint64_t>(static_cast<uint16_t>(snapshot[2])) << 16U) |
+                             static_cast<uint64_t>(static_cast<uint16_t>(snapshot[3]));
+    sys_put_be64(payload, frame.data);
     return bsp_fdcan_transmit(device, &frame, FDCAN_NO_WAIT);
 }

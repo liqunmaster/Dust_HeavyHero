@@ -2,3 +2,4 @@ mainmenu "Dust HeavyHero"
 
 source "Kconfig.zephyr"
 rsource "Device/remote/Kconfig"
+rsource "Device/imu/Kconfig"

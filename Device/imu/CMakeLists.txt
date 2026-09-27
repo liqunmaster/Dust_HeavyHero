@@ -1,1 +1,2 @@
-add_subdirectory(icm42688p_hxy)
+add_subdirectory_ifdef(CONFIG_IMU_DEVICE_ICM42688P_HXY icm42688p_hxy)
+add_subdirectory_ifdef(CONFIG_IMU_DEVICE_HI14R3_ICM42688P_HXY icm42688p_hxy)
