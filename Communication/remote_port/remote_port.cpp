@@ -1,4 +1,8 @@
-#include "remote_task.hpp"
+#include "remote_port.hpp"
+
+volatile uint32_t remote_port_loop_count;
+volatile uint32_t remote_port_total_cycles;
+volatile uint32_t remote_port_max_cycles;
 
 namespace {
     struct remote_state {
@@ -105,7 +109,7 @@ namespace {
         k_sem_give(&remote_sem);
     }
 
-    void remote_task()
+    void remote_port_process()
     {
         uint8_t bytes[remote_frame_size * 4U];
         int count;
@@ -123,12 +127,17 @@ namespace {
     {
         while (1) {
             k_sem_take(&remote_sem, K_FOREVER);
-            remote_task();
+            const uint32_t start_cycles = k_cycle_get_32();
+            remote_port_process();
+            const uint32_t elapsed_cycles = k_cycle_get_32() - start_cycles;
+            ++remote_port_loop_count;
+            remote_port_total_cycles += elapsed_cycles;
+            if (elapsed_cycles > remote_port_max_cycles) remote_port_max_cycles = elapsed_cycles;
         }
     }
 }
 
-int remote_init()
+int remote_port_init()
 {
     const int result = init_remote_uart();
     if (result != 0) {
@@ -143,7 +152,7 @@ int remote_init()
     return 0;
 }
 
-int remote_task_get_sample(remote_sample &sample)
+int remote_port_get_sample(remote_sample &sample)
 {
     const k_spinlock_key_t key = k_spin_lock(&state.lock);
     if (!state.has_sample) {
@@ -155,7 +164,7 @@ int remote_task_get_sample(remote_sample &sample)
     return 0;
 }
 
-uint32_t remote_task_feedback_count()
+uint32_t remote_port_feedback_count()
 {
     return static_cast<uint32_t>(atomic_get(&state.feedback_count));
 }

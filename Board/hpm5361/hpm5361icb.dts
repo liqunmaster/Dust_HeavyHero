@@ -15,6 +15,7 @@
 /* Zephyr 4.4 uses isa-base/isa-extensions; remove HPM's legacy alias. */
 &cpu0 {
 	/delete-property/ riscv,isa;
+	riscv,isa-extensions = "m", "a", "f", "c", "zicsr", "zifencei";
 };
 
 / {
@@ -141,7 +142,7 @@
 			interrupts = <35 1>;
 			interrupt-parent = <&plic>;
 			clk-name = <CLOCK_CAN0>;
-			clk-source = <CLK_SRC_PLL1_CLK0>;
+			clk-source = <CLK_SRC_PLL0_CLK0>;
 			clk-divider = <10>;
 			status = "disabled";
 		};
@@ -153,7 +154,7 @@
 			interrupts = <36 1>;
 			interrupt-parent = <&plic>;
 			clk-name = <CLOCK_CAN1>;
-			clk-source = <CLK_SRC_PLL1_CLK0>;
+			clk-source = <CLK_SRC_PLL0_CLK0>;
 			clk-divider = <10>;
 			status = "disabled";
 		};
@@ -165,7 +166,7 @@
 			interrupts = <37 1>;
 			interrupt-parent = <&plic>;
 			clk-name = <CLOCK_CAN2>;
-			clk-source = <CLK_SRC_PLL1_CLK0>;
+			clk-source = <CLK_SRC_PLL0_CLK0>;
 			clk-divider = <10>;
 			status = "disabled";
 		};
@@ -177,7 +178,7 @@
 			interrupts = <38 1>;
 			interrupt-parent = <&plic>;
 			clk-name = <CLOCK_CAN3>;
-			clk-source = <CLK_SRC_PLL1_CLK0>;
+			clk-source = <CLK_SRC_PLL0_CLK0>;
 			clk-divider = <10>;
 			status = "disabled";
 		};

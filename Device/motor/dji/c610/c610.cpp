@@ -32,11 +32,6 @@ int c610::init(fdcan_device device, C610_ID id, float gear_ratio)
         return -EINVAL;
     }
 
-    const int result = dji_motor::init_bus(device);
-    if (result != 0) {
-        return result;
-    }
-
     device_     = device;
     id_         = id;
     gear_ratio_ = gear_ratio;
@@ -71,16 +66,16 @@ int c610::set_current(float current)
 }
 
 /**
- * @brief 发送当前电调所在组的电流控制报文
+ * @brief 生成当前电调所在组的电流控制报文
  *
  * @return 0 表示成功 负值表示错误
  */
-int c610::transmit()
+int c610::build_control_frame(fdcan_frame &frame) const
 {
     if (!initialized_) {
         return -ENODEV;
     }
-    return dji_motor::transmit(device_, static_cast<uint8_t>(id_));
+    return dji_motor::build_control_frame(device_, static_cast<uint8_t>(id_), frame);
 }
 
 /**
@@ -135,15 +130,15 @@ int c610::process_feedback(const fdcan_frame &frame)
         return result;
     }
 
-    atomic_inc(&feedback_count_);
     unpack_feedback(frame.data);
+    atomic_inc(&feedback_count_);
     return 0;
 }
 
 /**
- * @brief 获取累计收到的反馈帧数
+ * @brief 获取累计成功解包的反馈帧数
  *
- * @return 累计收到的反馈帧数
+ * @return 累计成功解包的反馈帧数
  */
 uint32_t c610::get_feedback_count() const
 {

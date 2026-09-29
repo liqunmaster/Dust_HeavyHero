@@ -1,7 +1,6 @@
 add_subdirectory(core)
 add_subdirectory(app_chassis)
 add_subdirectory(app_liftup)
-add_subdirectory(app_shoot)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/usage/CMakeLists.txt")
     add_subdirectory(usage)
 endif()

@@ -16,4 +16,4 @@ int bsp_uart_init(const struct device *device = nullptr);
 
 int bsp_uart_receive(void *data, size_t length);
 
-int bsp_uart_transmit(const void *data, size_t length);
+int bsp_uart_transmit(const void *data, size_t length, const struct device *device = nullptr);

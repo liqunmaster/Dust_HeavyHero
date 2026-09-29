@@ -10,8 +10,8 @@ namespace {
         ring_buffer_t tx_buffer;
         uint8_t rx_storage[512];
         uint8_t tx_storage[128];
-        uint8_t rx_dma[2][128] __aligned(4);
-        uint8_t tx_dma[128] __aligned(4);
+        uint8_t (*rx_dma)[128];
+        uint8_t *tx_dma;
         bool rx_owned[2];
         bool rx_active;
         bool ready;
@@ -23,7 +23,14 @@ namespace {
         struct k_sem tx_done;
     };
 
+    struct uart_dma_buffers {
+        uint8_t rx[2][128];
+        uint8_t tx[128];
+    };
+
+    static uart_dma_buffers dma_buffers[2] __attribute__((section("AHB_SRAM"), aligned(4)));
     static uart_context context;
+    static uart_context console_context;
 
     /**
      * @brief 
@@ -98,7 +105,7 @@ namespace {
     static int stdout_character(int character)
     {
         const uint8_t byte = static_cast<uint8_t>(character);
-        return bsp_uart_transmit(&byte, 1) == 1 ? byte : EOF;
+        return bsp_uart_transmit(&byte, 1, DEVICE_DT_GET(DT_NODELABEL(uart3))) == 1 ? byte : EOF;
     }
 
 } 
@@ -113,23 +120,29 @@ int bsp_uart_init(const struct device *device)
 {
     if (k_is_in_isr()) return -EWOULDBLOCK;
     if (device == nullptr) device = DEVICE_DT_GET(DT_NODELABEL(uart3));
-    uart_context *ctx = &context;
+    const bool is_console = device == DEVICE_DT_GET(DT_NODELABEL(uart3));
+    uart_context *ctx = is_console ? &console_context : &context;
     if (ctx->ready) return ctx->device == device ? 0 : -EBUSY;
     if (!device_is_ready(device)) return -ENODEV;
     ctx->device = device;
+    uart_dma_buffers *dma = &dma_buffers[is_console ? 0 : 1];
+    ctx->rx_dma = dma->rx;
+    ctx->tx_dma = dma->tx;
     k_mutex_init(&ctx->tx_lock);
     k_sem_init(&ctx->tx_done, 0, 1);
     ring_buffer_init(&ctx->rx_buffer, ctx->rx_storage, sizeof(ctx->rx_storage));
     ring_buffer_init(&ctx->tx_buffer, ctx->tx_storage, sizeof(ctx->tx_storage));
     int ret = uart_callback_set(device, uart_callback, ctx);
     if (ret != 0) return ret;
-    ret = start_rx(ctx);
-    if (ret != 0) {
-        (void)uart_callback_set(device, nullptr, nullptr);
-        return ret;
+    if (!is_console) {
+        ret = start_rx(ctx);
+        if (ret != 0) {
+            (void)uart_callback_set(device, nullptr, nullptr);
+            return ret;
+        }
     }
     ctx->ready = true;
-    __stdout_hook_install(stdout_character);
+    if (is_console) __stdout_hook_install(stdout_character);
     return 0;
 }
 
@@ -143,7 +156,7 @@ int bsp_uart_init(const struct device *device)
 int bsp_uart_receive(void *data, size_t length)
 {
     if (k_is_in_isr()) return -EWOULDBLOCK;
-    uart_context *ctx = &context;
+    uart_context *ctx = context.ready ? &context : &console_context;
     if (!ctx->ready) return -ENODEV;
     if (data == nullptr && length != 0) return -EINVAL;
     if (length > INT_MAX) return -EMSGSIZE;
@@ -164,10 +177,11 @@ int bsp_uart_receive(void *data, size_t length)
  * @param length 
  * @return int 
  */
-int bsp_uart_transmit(const void *data, size_t length)
+int bsp_uart_transmit(const void *data, size_t length, const struct device *device)
 {
     if (k_is_in_isr()) return -EWOULDBLOCK;
-    uart_context *ctx = &context;
+    uart_context *ctx = device == nullptr ? (context.ready ? &context : &console_context) : device == DEVICE_DT_GET(DT_NODELABEL(uart3)) ? &console_context : device == context.device ? &context : nullptr;
+    if (ctx == nullptr) return -ENODEV;
     if (!ctx->ready) return -ENODEV;
     if (data == nullptr && length != 0) return -EINVAL;
     if (length > INT_MAX) return -EMSGSIZE;
@@ -232,7 +246,7 @@ extern "C" int printf(const char *format, ...)
         errno = EMSGSIZE;
         return EOF;
     }
-    const int ret = bsp_uart_transmit(message, length);
+    const int ret = bsp_uart_transmit(message, length, DEVICE_DT_GET(DT_NODELABEL(uart3)));
     if (ret != length) {
         errno = ret < 0 ? -ret : EIO;
         return EOF;

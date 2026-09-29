@@ -3,11 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/init.h>
 #include <zephyr/sys/util.h>
 #include <hpm_common.h>
+#include <hpm_clock_drv.h>
 #include <hpm_iomux.h>
+#include <hpm_pllctlv2_drv.h>
 #include <hpm_soc.h>
+
+static int hpm5361_board_clock_init(void)
+{
+	if (pllctlv2_init_pll_with_freq(HPM_PLLCTLV2, PLLCTLV2_PLL_PLL0, 960000000U) != status_success) {
+		return -EIO;
+	}
+	pllctlv2_set_postdiv(HPM_PLLCTLV2, PLLCTLV2_PLL_PLL0, pllctlv2_clk0, pllctlv2_div_1p0);
+	return clock_set_source_divider(clock_cpu0, clk_src_pll0_clk0, 2) == status_success ? 0 : -EIO;
+}
+
+SYS_INIT(hpm5361_board_clock_init, PRE_KERNEL_2, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
 #if defined(CONFIG_HPM_BOOT_HEADER)
 /* BootROM reads this XPI option block from internal flash offset 0x400. */

@@ -14,10 +14,7 @@ struct icm42688phxy_sample {
 
 class icm42688phxy final {
 public:
-    static constexpr size_t frame_size = ICM42688PHXY_SENSOR_FRAME_SIZE +
-                                          ICM42688PHXY_TEMP_FRAME_SIZE;
+    static constexpr size_t frame_size = ICM42688PHXY_SENSOR_FRAME_SIZE + ICM42688PHXY_TEMP_FRAME_SIZE;
 
-    /* Device layer only unpacks bytes. Unit conversion belongs to Module. */
-    static int decode_frame(const uint8_t *frame, size_t length,
-                            icm42688phxy_sample &sample);
+    static int decode_frame(const uint8_t *frame, size_t length, icm42688phxy_sample &sample);
 };

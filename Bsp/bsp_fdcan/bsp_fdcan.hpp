@@ -12,6 +12,8 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
+#include <hpm_mcan_drv.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -130,6 +132,11 @@ int bsp_fdcan_transmit(fdcan_device device, const fdcan_frame *frame, fdcan_time
 typedef void (*fdcan_rx_callback_t)(fdcan_device device, const fdcan_frame *frame, void *user_data);
 
 int bsp_fdcan_set_rx_callback(fdcan_device device, fdcan_rx_callback_t callback, void *user_data);
+int bsp_fdcan_set_rx_interrupt(fdcan_device device, bool enabled);
+
+typedef void (*fdcan_tx_callback_t)(fdcan_device device, int error, void *user_data);
+
+int bsp_fdcan_set_tx_callback(fdcan_device device, fdcan_tx_callback_t callback, void *user_data);
 
 int bsp_fdcan_recover(fdcan_device device, fdcan_timeout timeout);
 

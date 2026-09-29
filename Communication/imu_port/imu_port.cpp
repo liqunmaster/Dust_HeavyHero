@@ -1,4 +1,4 @@
-#include "imu_task.hpp"
+#include "imu_port.hpp"
 
 #define IMU_NODE DT_ALIAS(imu_spi)
 
@@ -84,18 +84,16 @@ namespace {
         k_sleep(K_MSEC(50));
 
         uint8_t who_am_i = 0U;
-        if (read_registers(ICM42688PHXY_REG_WHO_AM_I, &who_am_i, 1U) != 0 ||
-            who_am_i != ICM42688PHXY_WHO_AM_I_VALUE) {
+        if (read_registers(ICM42688PHXY_REG_WHO_AM_I, &who_am_i, 1U) != 0 || who_am_i != ICM42688PHXY_WHO_AM_I_VALUE) {
             return -ENODEV;
         }
 
-        if (configure_register(ICM42688PHXY_REG_PWR_CTRL, ICM42688PHXY_PWR_ALL_ON, 10U) != 0 ||
+        if (configure_register(ICM42688PHXY_REG_PWR_CTRL, ICM42688PHXY_PWR_ALL_ON, 10U)         != 0 || 
             configure_register(ICM42688PHXY_REG_COM_CFG, ICM42688PHXY_COM_CFG_BDU_AUTO_INC, 1U) != 0 ||
-            configure_register(ICM42688PHXY_REG_ACC_CONF, ICM42688PHXY_ACC_CONF_1600HZ, 1U) != 0 ||
-            configure_register(ICM42688PHXY_REG_ACC_RANGE, ICM42688PHXY_ACC_RANGE_16G, 1U) != 0 ||
-            configure_register(ICM42688PHXY_REG_GYR_CONF, ICM42688PHXY_GYR_CONF_1600HZ, 1U) != 0 ||
-            configure_register(ICM42688PHXY_REG_GYR_RANGE, ICM42688PHXY_GYR_RANGE_2000DPS, 1U) != 0 ||
-            configure_register(ICM42688PHXY_REG_INT_CFG1, ICM42688PHXY_INT1_DRDY_ACCEL, 1U) != 0) {
+            configure_register(ICM42688PHXY_REG_ACC_CONF, ICM42688PHXY_ACC_CONF_1600HZ, 1U)     != 0 ||
+            configure_register(ICM42688PHXY_REG_ACC_RANGE, ICM42688PHXY_ACC_RANGE_16G, 1U)      != 0 ||
+            configure_register(ICM42688PHXY_REG_GYR_CONF, ICM42688PHXY_GYR_CONF_1600HZ, 1U)     != 0 ||
+            configure_register(ICM42688PHXY_REG_GYR_RANGE, ICM42688PHXY_GYR_RANGE_2000DPS, 1U)  != 0) {
             return -EIO;
         }
 
@@ -105,7 +103,11 @@ namespace {
             return -EIO;
         }
 
-        return bsp_gpio_exti_init(&imu_int1_irq, &imu_int1, GPIO_INT_EDGE_TO_ACTIVE, [](void *) { k_sem_give(&imu_sem); }, nullptr);
+        const int irq_ret = bsp_gpio_exti_init(&imu_int1_irq, &imu_int1, GPIO_INT_EDGE_TO_ACTIVE, [](void *) { k_sem_give(&imu_sem); }, nullptr);
+        if (irq_ret != 0) {
+            return irq_ret;
+        }
+        return configure_register(ICM42688PHXY_REG_INT_CFG1, ICM42688PHXY_INT1_DRDY_ACCEL, 1U);
     }
 
     int read_imu_frame()
@@ -118,7 +120,7 @@ namespace {
         if ((status & (ICM42688PHXY_DATA_STAT_GYR_CONF_ERR | ICM42688PHXY_DATA_STAT_ACC_CONF_ERR)) != 0U) {
             return -EIO;
         }
-        if ((status & (ICM42688PHXY_DATA_STAT_GYR_READY | ICM42688PHXY_DATA_STAT_ACC_READY)) != (ICM42688PHXY_DATA_STAT_GYR_READY | ICM42688PHXY_DATA_STAT_ACC_READY)) {
+        if ((status & ICM42688PHXY_DATA_STAT_ACC_READY) == 0U) {
             return -EAGAIN;
         }
 
@@ -141,10 +143,13 @@ namespace {
             state.has_sample = true;
             k_spin_unlock(&state.lock, key);
         }
+
+        static int n = 0;
+
         return 0;
     }
 
-    void imu_task()
+    void imu_port_process()
     {
         (void)read_imu_frame();
     }
@@ -153,13 +158,13 @@ namespace {
     {
         while (1) {
             k_sem_take(&imu_sem, K_FOREVER);
-            imu_task();
+            imu_port_process();
         }
     }
 
 }
 
-int imu_init()
+int imu_port_init()
 {
     const int ret = init_icm42688p_hxy();
     if (ret != 0) {
@@ -172,7 +177,7 @@ int imu_init()
     return 0;
 }
 
-int imu_task_get_sample(imu_sample &sample)
+int imu_port_get_sample(imu_sample &sample)
 {
     const k_spinlock_key_t key = k_spin_lock(&state.lock);
     if (!state.has_sample) {
@@ -184,7 +189,7 @@ int imu_task_get_sample(imu_sample &sample)
     return 0;
 }
 
-uint32_t imu_task_feedback_count()
+uint32_t imu_port_feedback_count()
 {
     return static_cast<uint32_t>(atomic_get(&state.feedback_count));
 }

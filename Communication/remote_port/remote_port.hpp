@@ -22,7 +22,7 @@ using remote_sample = dt7_sample;
 using remote_sample = vt03_sample;
 #endif
 
-int remote_init();
-int remote_task_get_sample(remote_sample &sample);
+int remote_port_init();
+int remote_port_get_sample(remote_sample &sample);
 
-uint32_t remote_task_feedback_count();
+uint32_t remote_port_feedback_count();

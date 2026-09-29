@@ -11,13 +11,14 @@
 
 #include "bsp_gpio.h"
 #include "bsp_spi.hpp"
+#include "bsp_uart.hpp"
 #include "icm42688p_hxy.hpp"
 #include "icm42688p_hxy_reg.h"
 
 using imu_sample = icm42688phxy_sample;
 
-int imu_init();
+int imu_port_init();
 
-int imu_task_get_sample(imu_sample &sample);
+int imu_port_get_sample(imu_sample &sample);
 
-uint32_t imu_task_feedback_count();
+uint32_t imu_port_feedback_count();

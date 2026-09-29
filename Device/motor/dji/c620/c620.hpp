@@ -49,7 +49,7 @@ public:
 
     int set_current(float current);
 
-    int transmit();
+    int build_control_frame(fdcan_frame &frame) const;
 
     int process_feedback(const fdcan_frame &frame);
 
@@ -58,6 +58,20 @@ public:
     C620RxData get_rx_data() const;
 
     C620Data get_data() const;
+
+    fdcan_device device() const {
+        return device_;
+    }
+
+    uint8_t motor_id() const { return static_cast<uint8_t>(id_); }
+
+    uint32_t feedback_id() const {
+        return 0x200U + motor_id();
+    }
+
+    uint32_t command_frame_id() const {
+        return motor_id() <= 4U ? 0x200U : 0x1FFU;
+    }
 
 private:
     static constexpr uint16_t encoder_resolution_ = 8192U;     // 每圈编码器计数

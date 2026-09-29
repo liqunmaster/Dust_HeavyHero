@@ -118,20 +118,6 @@ int dm_motor::init(fdcan_device device, uint8_t motor_id, DmControlMode mode, Dm
         return -EINVAL;
     }
 
-    if (!bsp_fdcan_is_ready(device)) {
-        const fdcan_config config = {
-            .mode = FDCAN_MODE_NORMAL,
-            .retransmission = FDCAN_RETRANSMISSION_DISABLED,
-        };
-        const int result = bsp_fdcan_init(device, &config);
-        if (result != 0 && result != -EALREADY) {
-            return result;
-        }
-    }
-    if (protocol == FDCAN_PROTOCOL_FD && bsp_fdcan_get_data_bitrate(device) == 0U) {
-        return -ENOTSUP;
-    }
-
     const k_spinlock_key_t key = k_spin_lock(&lock_);
     device_ = device;
     motor_id_ = motor_id;
@@ -269,31 +255,34 @@ int dm_motor::set_position_torque(float position, float max_velocity, float curr
 }
 
 /**
- * @brief 发送经典 CAN 标准控制帧
+ * @brief 生成经典 CAN 标准控制帧
  *
  * @param id 控制帧 CAN ID
  * @param data 控制帧数据区
  * @param length 有效数据长度
- * @return 0 表示发送请求成功 负值表示 CAN 发送错误
+ * @return 0 表示组帧成功 负值表示参数错误
  */
-int dm_motor::send_frame(uint16_t id, const uint8_t *data, uint8_t length)
+int dm_motor::make_frame(uint16_t id, const uint8_t *data, uint8_t length, fdcan_frame &frame)
 {
-    fdcan_frame frame{};
+    if (data == nullptr || length > 8U) {
+        return -EINVAL;
+    }
+    frame = {};
     frame.id = id;
     frame.id_type = FDCAN_ID_STANDARD;
     frame.protocol = FDCAN_PROTOCOL_CLASSIC;
     frame.bitrate_switch = FDCAN_BRS_DISABLED;
     frame.length = length;
     memcpy(frame.data, data, length);
-    return bsp_fdcan_transmit(device_, &frame, FDCAN_NO_WAIT);
+    return 0;
 }
 
 /**
- * @brief 发送最近一次设置的控制目标
+ * @brief 生成最近一次设置的控制目标帧
  *
- * @return 0 表示发送请求成功 未设置目标、切换模式中或发送失败时返回负值
+ * @return 0 表示组帧成功 未设置目标或切换模式中时返回负值
  */
-int dm_motor::transmit()
+int dm_motor::build_control_frame(fdcan_frame &frame) const
 {
     uint8_t payload[8];
     uint8_t length;
@@ -308,16 +297,16 @@ int dm_motor::transmit()
     length = tx_length_;
     memcpy(payload, tx_data_, length);
     k_spin_unlock(&lock_, key);
-    return send_frame(id, payload, length);
+    return make_frame(id, payload, length, frame);
 }
 
 /**
- * @brief 发送以七字节 0xFF 开头的电机特殊命令
+ * @brief 生成以七字节 0xFF 开头的电机特殊命令帧
  *
  * @param command 命令末字节 用于使能、失能、清错或保存零点
- * @return 0 表示发送请求成功 负值表示未初始化或 CAN 发送错误
+ * @return 0 表示组帧成功 负值表示未初始化
  */
-int dm_motor::send_command(uint8_t command)
+int dm_motor::build_command_frame(uint8_t command, fdcan_frame &frame) const
 {
     const k_spinlock_key_t key = k_spin_lock(&lock_);
     if (!initialized_) {
@@ -329,52 +318,52 @@ int dm_motor::send_command(uint8_t command)
     uint8_t payload[8];
     memset(payload, 0xFF, sizeof(payload));
     payload[7] = command;
-    return send_frame(id, payload, sizeof(payload));
+    return make_frame(id, payload, sizeof(payload), frame);
 }
 
 /**
- * @brief 发送电机使能命令 0xFC
+ * @brief 生成电机使能命令帧 0xFC
  *
  * @return 0 表示发送请求成功 负值表示错误码
  */
-int dm_motor::enable() { 
-    return send_command(0xFCU); 
+int dm_motor::build_enable_frame(fdcan_frame &frame) const {
+    return build_command_frame(0xFCU, frame);
 }
 
 /**
- * @brief 发送电机失能命令 0xFD
+ * @brief 生成电机失能命令帧 0xFD
  *
  * @return 0 表示发送请求成功，负值表示错误码
  */
-int dm_motor::disable() {
-    return send_command(0xFDU);
+int dm_motor::build_disable_frame(fdcan_frame &frame) const {
+    return build_command_frame(0xFDU, frame);
 }
 
 /**
- * @brief 发送清除电机错误命令 0xFB
+ * @brief 生成清除电机错误命令帧 0xFB
  *
  * @return 0 表示发送请求成功，负值表示错误码
  */
-int dm_motor::clear_error() { 
-    return send_command(0xFBU); 
+int dm_motor::build_clear_error_frame(fdcan_frame &frame) const {
+    return build_command_frame(0xFBU, frame);
 }
 
 /**
- * @brief 将电机当前输出轴位置保存为零点
+ * @brief 生成将当前输出轴位置保存为零点的命令帧
  *
  * @return 0 表示发送请求成功，负值表示错误码
  */
-int dm_motor::save_zero() {
-    return send_command(0xFEU);
+int dm_motor::build_save_zero_frame(fdcan_frame &frame) const {
+    return build_command_frame(0xFEU, frame);
 }
 
 /**
- * @brief 请求写入控制模式寄存器 0x0A
+ * @brief 生成写入控制模式寄存器 0x0A 的命令帧
  *
  * @param mode 目标控制模式 应答丢失时可用同一模式重发
- * @return 0 表示写入帧已提交 负值表示参数错误、切换冲突或发送失败
+ * @return 0 表示组帧成功 负值表示参数错误或切换冲突
  */
-int dm_motor::switch_mode(DmControlMode mode)
+int dm_motor::build_mode_frame(DmControlMode mode, fdcan_frame &frame) const
 {
     if (!valid_mode(mode)) {
         return -EINVAL;
@@ -387,22 +376,27 @@ int dm_motor::switch_mode(DmControlMode mode)
     }
     if (mode == mode_ && !mode_change_pending_) {
         k_spin_unlock(&lock_, key);
-        return 0;
+        return -EALREADY;
     }
-    const bool was_pending = mode_change_pending_;
-    requested_mode_ = mode;
-    mode_change_pending_ = true;
     const uint8_t motor_id = motor_id_;
     k_spin_unlock(&lock_, key);
 
     const uint8_t payload[8] = {motor_id, 0U, 0x55U, ModeRegister, static_cast<uint8_t>(mode), 0U, 0U, 0U};
-    const int result = send_frame(RegisterCommandId, payload, sizeof(payload));
-    if (result != 0 && !was_pending) {
-        const k_spinlock_key_t reset_key = k_spin_lock(&lock_);
-        mode_change_pending_ = false;
-        k_spin_unlock(&lock_, reset_key);
+    return make_frame(RegisterCommandId, payload, sizeof(payload), frame);
+}
+
+int dm_motor::mark_mode_request(DmControlMode mode)
+{
+    const k_spinlock_key_t key = k_spin_lock(&lock_);
+    if (!initialized_ || (mode_change_pending_ && requested_mode_ != mode)) {
+        const int result = !initialized_ ? -ENODEV : -EBUSY;
+        k_spin_unlock(&lock_, key);
+        return result;
     }
-    return result;
+    requested_mode_ = mode;
+    mode_change_pending_ = true;
+    k_spin_unlock(&lock_, key);
+    return 0;
 }
 
 /**
@@ -425,7 +419,6 @@ int dm_motor::process_feedback(const fdcan_frame &frame)
 
     if (frame.data[0] == motor_id_ && frame.data[1] == 0U &&
         frame.data[2] == 0x55U && frame.data[3] == ModeRegister) {
-        atomic_inc(&feedback_count_);
         const k_spinlock_key_t key = k_spin_lock(&lock_);
         if (mode_change_pending_ && frame.data[4] == static_cast<uint8_t>(requested_mode_) &&
             frame.data[5] == 0U && frame.data[6] == 0U && frame.data[7] == 0U) {
@@ -433,6 +426,7 @@ int dm_motor::process_feedback(const fdcan_frame &frame)
             mode_change_pending_ = false;
             tx_length_ = 0U;
             k_spin_unlock(&lock_, key);
+            atomic_inc(&feedback_count_);
             return 0;
         }
         k_spin_unlock(&lock_, key);
@@ -444,7 +438,6 @@ int dm_motor::process_feedback(const fdcan_frame &frame)
     if (id != motor_id_) {
         return -ENOMSG;
     }
-    atomic_inc(&feedback_count_);
     DmRxData raw{};
     raw.motor_id = id;
     raw.status   = static_cast<uint8_t>((feedback >> 60U) & 0x0FU);
@@ -464,13 +457,14 @@ int dm_motor::process_feedback(const fdcan_frame &frame)
         raw.status,
     };
     k_spin_unlock(&lock_, key);
+    atomic_inc(&feedback_count_);
     return 0;
 }
 
 /**
- * @brief 获取累计收到的电机反馈帧数
+ * @brief 获取累计成功解包的电机反馈帧数
  *
- * @return 状态反馈和模式切换应答帧数
+ * @return 有效状态反馈和模式切换应答帧数
  */
 uint32_t dm_motor::get_feedback_count() const
 {
@@ -514,4 +508,12 @@ DmControlMode dm_motor::get_mode() const
     const DmControlMode snapshot = mode_;
     k_spin_unlock(&lock_, key);
     return snapshot;
+}
+
+uint32_t dm_motor::control_frame_id() const
+{
+    const k_spinlock_key_t key = k_spin_lock(&lock_);
+    const uint32_t id = initialized_ ? control_id(motor_id_, mode_) : 0U;
+    k_spin_unlock(&lock_, key);
+    return id;
 }

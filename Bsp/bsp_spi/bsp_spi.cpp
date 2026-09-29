@@ -2,6 +2,10 @@
 
 namespace {
 
+    static uint8_t dma_tx[BSP_SPI_BUFFER_SIZE] __attribute__((section("AHB_SRAM"), aligned(4)));
+    static uint8_t dma_rx[BSP_SPI_BUFFER_SIZE] __attribute__((section("AHB_SRAM"), aligned(4)));
+    K_MUTEX_DEFINE(dma_lock);
+
     int bsp_spi_check_ready(const bsp_spi *spi, const uint8_t *data, size_t length)
     {
         if (spi == nullptr || !spi->initialized || spi->device == nullptr || data == nullptr || length == 0U) {
@@ -14,32 +18,38 @@ namespace {
     {
         if (length > BSP_SPI_BUFFER_SIZE) return -EMSGSIZE;
 
-    const size_t queued = ring_buffer_write(&spi->tx_buffer, tx_data, length);
-    if (queued != length) {
-        ring_buffer_clear(&spi->tx_buffer);
-        return -ENOBUFS;
-    }
+        k_mutex_lock(&dma_lock, K_FOREVER);
 
-    uint8_t tx[BSP_SPI_BUFFER_SIZE]{};
-    uint8_t rx[BSP_SPI_BUFFER_SIZE]{};
-    (void)ring_buffer_read(&spi->tx_buffer, tx, length);
-
-    struct spi_buf tx_buf{tx, length};
-    struct spi_buf_set tx_set{&tx_buf, 1U};
-    struct spi_buf rx_buf{rx, length};
-    struct spi_buf_set rx_set{&rx_buf, 1U};
-    const int ret = spi_transceive(spi->device, &spi->config, &tx_set, rx_data != nullptr ? &rx_set : nullptr);
-    if (ret != 0) return ret;
-
-    if (rx_data != nullptr) {
-        if (ring_buffer_write(&spi->rx_buffer, rx, length) != length) {
-            ring_buffer_clear(&spi->rx_buffer);
+        const size_t queued = ring_buffer_write(&spi->tx_buffer, tx_data, length);
+        if (queued != length) {
+            ring_buffer_clear(&spi->tx_buffer);
+            k_mutex_unlock(&dma_lock);
             return -ENOBUFS;
         }
-        (void)ring_buffer_read(&spi->rx_buffer, rx_data, length);
+
+        (void)ring_buffer_read(&spi->tx_buffer, dma_tx, length);
+
+        struct spi_buf tx_buf{dma_tx, length};
+        struct spi_buf_set tx_set{&tx_buf, 1U};
+        struct spi_buf rx_buf{dma_rx, length};
+        struct spi_buf_set rx_set{&rx_buf, 1U};
+        const int ret = spi_transceive(spi->device, &spi->config, &tx_set, rx_data != nullptr ? &rx_set : nullptr);
+        if (ret != 0) {
+            k_mutex_unlock(&dma_lock);
+            return ret;
+        }
+
+        if (rx_data != nullptr) {
+            if (ring_buffer_write(&spi->rx_buffer, dma_rx, length) != length) {
+                ring_buffer_clear(&spi->rx_buffer);
+                k_mutex_unlock(&dma_lock);
+                return -ENOBUFS;
+            }
+            (void)ring_buffer_read(&spi->rx_buffer, rx_data, length);
+        }
+        k_mutex_unlock(&dma_lock);
+        return 0;
     }
-    return 0;
-}
 
 }
 

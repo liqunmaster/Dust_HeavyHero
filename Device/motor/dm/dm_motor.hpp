@@ -55,17 +55,15 @@ public:
 
     int set_position_torque(float position, float max_velocity, float current_ratio);
     
-    int transmit();
+    int build_control_frame(fdcan_frame &frame) const;
 
-    int enable();
+    int build_enable_frame(fdcan_frame &frame) const;
 
-    int disable();
+    int build_disable_frame(fdcan_frame &frame) const;
 
-    int clear_error();
+    int build_clear_error_frame(fdcan_frame &frame) const;
 
-    int save_zero();
-
-    int switch_mode(DmControlMode mode);
+    int build_save_zero_frame(fdcan_frame &frame) const;
 
     int process_feedback(const fdcan_frame &frame);
 
@@ -77,7 +75,19 @@ public:
 
     DmControlMode get_mode() const;
 
+    fdcan_device device() const { return device_; }
+    uint8_t motor_id() const { return motor_id_; }
+    uint32_t feedback_id() const { return master_id_; }
+    fdcan_protocol feedback_protocol() const { return protocol_; }
+    uint32_t control_frame_id() const;
+
 private:
+    friend int fdcan_port_request_mode(dm_motor &motor, DmControlMode mode);
+
+    int build_mode_frame(DmControlMode mode, fdcan_frame &frame) const;
+
+    int mark_mode_request(DmControlMode mode);
+
     static bool valid_mode(DmControlMode mode);
     
     static uint16_t control_id(uint8_t motor_id, DmControlMode mode);
@@ -90,9 +100,9 @@ private:
 
     static void write_u16(uint8_t *dst, uint16_t value);
 
-    int send_command(uint8_t command);
+    int build_command_frame(uint8_t command, fdcan_frame &frame) const;
 
-    int send_frame(uint16_t id, const uint8_t *data, uint8_t length);
+    static int make_frame(uint16_t id, const uint8_t *data, uint8_t length, fdcan_frame &frame);
 
     fdcan_device device_ = FDCAN_DEVICE_COUNT;
 

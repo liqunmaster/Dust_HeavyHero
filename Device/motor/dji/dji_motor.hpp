@@ -13,8 +13,6 @@ namespace dji_motor {
     
     bool valid_id(int motor_id);
 
-    int init_bus(fdcan_device device);
-
     uint16_t read_u16(const uint8_t *data);
 
     int16_t signed_value(uint16_t raw);
@@ -23,6 +21,6 @@ namespace dji_motor {
 
     int set(fdcan_device device, uint8_t motor_id, int16_t raw);
 
-    int transmit(fdcan_device device, uint8_t motor_id);
+    int build_control_frame(fdcan_device device, uint8_t motor_id, fdcan_frame &frame);
 
 }

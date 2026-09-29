@@ -29,29 +29,6 @@ bool dji_motor::valid_id(int motor_id)
 }
 
 /**
- * @brief 初始化尚未就绪的 CAN 控制器
- *
- * @param device CAN 控制器编号
- * @return 0 表示成功 负值表示失败
- */
-int dji_motor::init_bus(fdcan_device device)
-{
-    if (!valid_device(device)) {
-        return -EINVAL;
-    }
-    if (bsp_fdcan_is_ready(device)) {
-        return 0;
-    }
-
-    const fdcan_config config = {
-        .mode = FDCAN_MODE_NORMAL,
-        .retransmission = FDCAN_RETRANSMISSION_DISABLED,
-    };
-    const int result = bsp_fdcan_init(device, &config);
-    return result == -EALREADY ? 0 : result;
-}
-
-/**
  * @brief 按大端字节顺序读取反馈报文中的 16 位字段
  *
  * @param data 指向至少 2 字节的反馈数据
@@ -114,13 +91,13 @@ int dji_motor::set(fdcan_device device, uint8_t motor_id, int16_t raw)
 }
 
 /**
- * @brief 发送电调所在分组的四路电流指令
+ * @brief 生成电调所在分组的四路电流指令帧
  *
  * @param device CAN 控制器编号
  * @param motor_id 电调 ID，决定 0x200/0x1FF
  * @return 0 表示成功 负值表示错误
  */
-int dji_motor::transmit(fdcan_device device, uint8_t motor_id)
+int dji_motor::build_control_frame(fdcan_device device, uint8_t motor_id, fdcan_frame &frame)
 {
     if (!valid_device(device) || !valid_id(motor_id)) {
         return -EINVAL;
@@ -134,7 +111,7 @@ int dji_motor::transmit(fdcan_device device, uint8_t motor_id)
     }
     k_spin_unlock(&commands_lock, key);
 
-    fdcan_frame frame{};
+    frame = {};
     frame.id = group == 0U ? 0x200U : 0x1FFU;
     frame.id_type = FDCAN_ID_STANDARD;
     frame.protocol = FDCAN_PROTOCOL_CLASSIC;
@@ -146,5 +123,5 @@ int dji_motor::transmit(fdcan_device device, uint8_t motor_id)
                              (static_cast<uint64_t>(static_cast<uint16_t>(snapshot[2])) << 16U) |
                              static_cast<uint64_t>(static_cast<uint16_t>(snapshot[3]));
     sys_put_be64(payload, frame.data);
-    return bsp_fdcan_transmit(device, &frame, FDCAN_NO_WAIT);
+    return 0;
 }

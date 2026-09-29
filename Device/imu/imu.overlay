@@ -13,7 +13,7 @@
     icm42688p_hxy: icm42688p_hxy@0 {
         compatible = "invensense,icm42688p-hxy";
         reg = <0>;
-        spi-max-frequency = <8000000>;
+        spi-max-frequency = <6000000>;
         spi-cpol;
         spi-cpha;
         int1-gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
