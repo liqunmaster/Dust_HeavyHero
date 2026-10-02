@@ -24,6 +24,6 @@
     ],
     "search.useIgnoreFiles": false,
      "workbench.colorCustomizations": {
-        "tree.indentGuidesStroke": "#6200ff"
+        "tree.indentGuidesStroke": "#0099ff"
     }
 }

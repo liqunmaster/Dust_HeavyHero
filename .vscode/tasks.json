@@ -9,7 +9,7 @@
                 "build", "-b", "hpm5361icb",
                 "-s", "${workspaceFolder}",
                 "-d", "${workspaceFolder}/build",
-                "-p", "always"
+                "-p", "auto"
             ],
             "options": {
                 "cwd": "D:/MCU/zephyr/zephyrproject",
@@ -26,13 +26,14 @@
         {
             "label": "Flash",
             "type": "process",
-            "command": "powershell.exe",
+            "dependsOn": "Build",
+            "command": "D:/MCU/hpm/tools/openocd/openocd.exe",
             "args": [
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                "& '${workspaceFolder}\\Script\\build&flash.cmd'"
+                "-s", "D:/MCU/hpm/tools/openocd/tcl",
+                "-s", "D:/MCU/hpm/hpm_sdk/boards/openocd",
+                "-f", "${workspaceFolder}/Board/hpm5361/hpm5361.cfg",
+                "-c", "adapter speed 500",
+                "-c", "program {${workspaceFolder}/build/zephyr/Dust_HeavyHero.elf} verify reset exit"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

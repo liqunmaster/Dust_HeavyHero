@@ -1,0 +1,18 @@
+# Daemon Supervisor
+
+本目录目前负责监测 CPU 负载，并通过板载 WS2812B 显示负载水平。设备离线检测、故障处理等功能尚未在此目录实现。
+
+## 文件
+
+- `cpu_usage.hpp`：提供 `cpu_usage` 采样类和 `cpu_usage_supervisor()` 调用入口。
+- `CMakeLists.txt`：将本目录加入应用的头文件搜索路径。
+
+## CPU 负载显示
+
+`App/core/main.cpp` 的主循环调用 `cpu_usage_supervisor()`。该函数自身不创建线程：首次调用记录统计计数，之后每次休眠 500 ms，再计算这段时间的 CPU 负载并更新 LED。
+
+负载来自 Zephyr 的 `k_thread_runtime_stats_all_get()`。计算使用两次采样之间的总运行周期和空闲周期：`负载 = (1 - 空闲周期差 / 总周期差) * 100%`。首次采样尚无可比较的周期；采样失败或未启用统计功能时，LED 熄灭。
+
+WS2812B 颜色随负载从绿过渡到黄、再到红：0% 为绿色，50% 为黄色，100% 为红色。红色和绿色通道的最大值为 126，蓝色通道始终为 0。LED 的实际发送由 `Device/ws2812b` 和 `Bsp/bsp_pwm` 完成。
+
+本功能依赖 `prj.conf` 中的 `CONFIG_THREAD_RUNTIME_STATS=y` 和 `CONFIG_SCHED_THREAD_USAGE_ALL=y`。这里显示的是采样区间内的 CPU 忙碌比例，并非单次函数调用的耗时。

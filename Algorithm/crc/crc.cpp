@@ -1,21 +1,23 @@
 #include "crc.hpp"
 
-uint16_t crc16_ccitt_false(const uint8_t *data, size_t length)
-{
+
+
+uint16_t crc16_ccitt_false(const uint8_t *data, size_t length) {
     uint16_t crc = 0xFFFFU;
     for (size_t i = 0U; i < length; ++i) {
         crc ^= static_cast<uint16_t>(data[i]) << 8U;
         for (uint8_t bit = 0U; bit < 8U; ++bit) {
-        crc = (crc & 0x8000U) != 0U ? static_cast<uint16_t>((crc << 1U) ^ 0x1021U) : static_cast<uint16_t>(crc << 1U);
+            crc = (crc & 0x8000U) != 0U ? static_cast<uint16_t>((crc << 1U) ^ 0x1021U) : static_cast<uint16_t>(crc << 1U);
+        }
     }
-  }
-  return crc;
+    return crc;
 }
+
 
 const unsigned char CRC8_INIT = 0xff;
 
-const unsigned char CRC8_TAB[256] =
-{
+
+const unsigned char CRC8_TAB[256] = {
     0x00, 0x5e, 0xbc, 0xe2, 0x61, 0x3f, 0xdd, 0x83, 0xc2, 0x9c, 0x7e, 0x20, 0xa3, 0xfd, 0x1f, 0x41,
     0x9d, 0xc3, 0x21, 0x7f, 0xfc, 0xa2, 0x40, 0x1e, 0x5f, 0x01, 0xe3, 0xbd, 0x3e, 0x60, 0x82, 0xdc, 0x23,
     0x7d, 0x9f, 0xc1, 0x42, 0x1c, 0xfe, 0xa0, 0xe1, 0xbf, 0x5d, 0x03, 0x80, 0xde, 0x3c, 0x62, 0xbe, 0xe0,
@@ -34,58 +36,43 @@ const unsigned char CRC8_TAB[256] =
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54, 0xd7, 0x89, 0x6b, 0x35,
 };
 
-/**
- * @brief 计算 CRC8 校验和
- *
- * @param pchMessage 待校验数据缓冲区
- * @param dwLength 数据长度
- * @param ucCRC8 初始 CRC8 值
- * @return CRC8 校验和
- */
-unsigned char get_crc8_check_sum(unsigned char *pchMessage, unsigned int dwLength, unsigned char ucCRC8)
-{
+
+
+unsigned char get_crc8_check_sum(unsigned char *pchMessage, unsigned int dwLength, unsigned char ucCRC8) {
     unsigned char ucIndex;
-    while (dwLength--)
-    {
+    while (dwLength--) {
         ucIndex = ucCRC8^(*pchMessage++);
-        ucCRC8 = CRC8_TAB[ucIndex];
+        ucCRC8  = CRC8_TAB[ucIndex];
     }
     return(ucCRC8);
 }
 
-/**
- * @brief 校验 CRC8
- *
- * @param pchMessage 待校验数据缓冲区
- * @param dwLength 数据长度
- * @return true 表示校验通过，false 表示校验失败
- */
-unsigned int verify_crc8_check_sum(unsigned char *pchMessage, unsigned int dwLength)
-{
+
+
+unsigned int verify_crc8_check_sum(unsigned char *pchMessage, unsigned int dwLength) {
     unsigned char ucExpected = 0;
-    if ((pchMessage == 0) || (dwLength <= 2)) return 0;
+    if ((pchMessage == 0) || (dwLength <= 2)) {
+        return 0;
+    }
     ucExpected = get_crc8_check_sum (pchMessage, dwLength-1, CRC8_INIT);
     return ( ucExpected == pchMessage[dwLength-1] );
 }
 
-/**
- * @brief 附加CRC8校验和
- *
- * @param pchMessage 数据缓冲区指针
- * @param dwLength 数据长度
- */
-void append_crc8_check_sum(unsigned char *pchMessage, unsigned int dwLength)
-{
+
+
+void append_crc8_check_sum(unsigned char *pchMessage, unsigned int dwLength) {
     unsigned char ucCRC = 0;
-    if ((pchMessage == 0) || (dwLength <= 2)) return;
+    if ((pchMessage == 0) || (dwLength <= 2)) {
+        return;
+    }
     ucCRC = get_crc8_check_sum ( (unsigned char *)pchMessage, dwLength-1, CRC8_INIT);
     pchMessage[dwLength-1] = ucCRC;
 }
 
 uint16_t CRC_INIT = 0xffff;
 
-const uint16_t wCRC_Table[256] =
-{
+
+const uint16_t wCRC_Table[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
     0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
     0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
@@ -120,41 +107,35 @@ const uint16_t wCRC_Table[256] =
     0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 };
 
-/**
- * @brief 计算CRC16校验和
- *
- * @param pchMessage 数据缓冲区指针
- * @param dwLength 数据长度
- * @param wCRC CRC 校验值
- * @return 对应返回值；若索引越界或无效则返回 0.0f
- */
-uint16_t get_crc16_check_sum(uint8_t *pchMessage, uint32_t dwLength, uint16_t wCRC)
-{
+
+
+uint16_t get_crc16_check_sum(uint8_t *pchMessage, uint32_t dwLength, uint16_t wCRC) {
     uint8_t chData;
-    if (pchMessage == NULL)
-    {
+    if (pchMessage == NULL) {
         return 0xFFFF;
     }
-    while(dwLength--)
-    {
+    while(dwLength--) {
         chData = *pchMessage++;
         (wCRC) = ((uint16_t)(wCRC) >> 8) ^ wCRC_Table[((uint16_t)(wCRC) ^ (uint16_t)(chData)) & 0x00ff];
     }
     return wCRC;
 }
 
-/**
- * @brief 校验CRC16
- *
- * @param pchMessage 数据缓冲区指针
- * @param dwLength 数据长度
- * @return 整型返回值
- */
-uint32_t verify_crc16_check_sum(uint8_t *pchMessage, uint32_t dwLength)
-{
+
+
+uint16_t crc16_dji(const uint8_t *data, size_t length) {
+    uint16_t crc = 0xFFFFU;
+    for (size_t i = 0U; i < length; ++i) {
+        crc = (crc >> 8U) ^ wCRC_Table[(crc ^ data[i]) & 0x00FFU];
+    }
+    return crc;
+}
+
+
+
+uint32_t verify_crc16_check_sum(uint8_t *pchMessage, uint32_t dwLength) {
     uint16_t wExpected = 0;
-    if ((pchMessage == NULL) || (dwLength <= 2))
-    {
+    if ((pchMessage == NULL) || (dwLength <= 2)) {
         return 0;
     }
     wExpected = get_crc16_check_sum ( pchMessage, dwLength - 2, CRC_INIT);
@@ -162,17 +143,11 @@ uint32_t verify_crc16_check_sum(uint8_t *pchMessage, uint32_t dwLength)
     pchMessage[dwLength - 1]);
 }
 
-/**
- * @brief 附加CRC16校验和
- *
- * @param pchMessage 数据缓冲区指针
- * @param dwLength 数据长度
- */
-void append_crc16_check_sum(uint8_t * pchMessage, uint32_t dwLength)
-{
+
+
+void append_crc16_check_sum(uint8_t * pchMessage, uint32_t dwLength) {
     uint16_t wCRC = 0;
-    if ((pchMessage == NULL) || (dwLength <= 2))
-    {
+    if ((pchMessage == NULL) || (dwLength <= 2)) {
         return;
     }
     wCRC = get_crc16_check_sum ( (uint8_t *)pchMessage, dwLength-2, CRC_INIT );

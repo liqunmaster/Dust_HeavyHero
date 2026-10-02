@@ -11,8 +11,6 @@
     data-bits = <8>;
     stop-bits = "1";
     parity = "none";
-    dmas = <&hdma 0 0x16>, <&hdma 1 0x17>;
-    dma-names = "rx", "tx";
     status = "okay";
 };
 
@@ -21,7 +19,5 @@
     data-bits = <8>;
     stop-bits = "1";
     parity = "even";
-    dmas = <&hdma 4 0x1c>, <&hdma 5 0x1d>;
-    dma-names = "rx", "tx";
     status = "okay";
 };

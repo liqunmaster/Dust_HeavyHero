@@ -1,59 +1,42 @@
 #include "c610.hpp"
 
-/**
- * @brief 解码 C610 的 8 字节反馈报文
- *
- * @param data 反馈报文数据区
- * @return 解码后的原始反馈数据
- */
-C610RxData c610::decode_feedback(const uint8_t *data)
-{
+
+
+C610RxData c610::decode_feedback(const uint8_t *data) {
     const uint64_t frame = sys_get_be64(data);
     C610RxData decoded{};
-    decoded.encoder      = static_cast<uint16_t>((frame >> 48U) & 0xFFFFU);
-    decoded.omega        = dji_motor::signed_value(static_cast<uint16_t>((frame >> 32U) & 0xFFFFU));
-    decoded.current      = static_cast<uint16_t>((frame >> 16U) & 0xFFFFU);
-    decoded.reserved     = static_cast<uint8_t>((frame >> 8U) & 0xFFU);
-    decoded.error        = static_cast<uint8_t>(frame & 0xFFU);
+    decoded.encoder  = static_cast<uint16_t>((frame >> 48U) & 0xFFFFU);
+    decoded.omega    = dji_motor::signed_value(static_cast<uint16_t>((frame >> 32U) & 0xFFFFU));
+    decoded.current  = static_cast<uint16_t>((frame >> 16U) & 0xFFFFU);
+    decoded.reserved = static_cast<uint8_t>((frame >> 8U) & 0xFFU);
+    decoded.error    = static_cast<uint8_t>(frame & 0xFFU);
     return decoded;
 }
 
-/**
- * @brief 初始化 C610 电调及 CAN 控制器
- *
- * @param device CAN 控制器编号
- * @param id C610 ID
- * @param gear_ratio 电机的减速比
- * @return 0 表示成功 负值表示错误
- */
-int c610::init(fdcan_device device, C610_ID id, float gear_ratio)
-{
+
+
+int c610::init(fdcan_device device, C610_ID id, float gear_ratio) {
     if (!dji_motor::valid_device(device) || !dji_motor::valid_id(id) || !__builtin_isfinite(gear_ratio) || gear_ratio <= 0.0F) {
         return -EINVAL;
     }
 
-    device_     = device;
-    id_         = id;
-    gear_ratio_ = gear_ratio;
+    device_                    = device;
+    id_                        = id;
+    gear_ratio_                = gear_ratio;
     const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
-    rx_data_             = {};
-    data_                = {};
-    total_encoder_       = 0;
-    encoder_initialized_ = false;
+    rx_data_                   = {};
+    data_                      = {};
+    total_encoder_             = 0;
+    encoder_initialized_       = false;
     k_spin_unlock(&feedback_lock_, key);
     atomic_set(&feedback_count_, 0);
     initialized_ = true;
     return 0;
 }
 
-/**
- * @brief 更新 C610 的目标电流
- *
- * @param current 目标电流，单位 A
- * @return 0 表示成功 负值表示错误
- */
-int c610::set_current(float current)
-{
+
+
+int c610::set_current(float current) {
     if (!initialized_) {
         return -ENODEV;
     }
@@ -65,35 +48,27 @@ int c610::set_current(float current)
     return dji_motor::set(device_, static_cast<uint8_t>(id_), command);
 }
 
-/**
- * @brief 生成当前电调所在组的电流控制报文
- *
- * @return 0 表示成功 负值表示错误
- */
-int c610::build_control_frame(fdcan_frame &frame) const
-{
+
+
+int c610::build_control_frame(fdcan_frame &frame) const {
     if (!initialized_) {
         return -ENODEV;
     }
     return dji_motor::build_control_frame(device_, static_cast<uint8_t>(id_), frame);
 }
 
-/**
- * @brief 更新编码器累计值和物理量反馈
- *
- * @param data 已校验的 8 字节反馈数据
- */
-void c610::unpack_feedback(const uint8_t *data)
-{
-    const C610RxData next = decode_feedback(data);
+
+
+void c610::unpack_feedback(const uint8_t *data) {
+    const C610RxData next      = decode_feedback(data);
     const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
 
     if (!encoder_initialized_) {
-        total_encoder_ = next.encoder;
+        total_encoder_       = next.encoder;
         encoder_initialized_ = true;
     } else {
         int32_t delta = static_cast<int32_t>(next.encoder) - static_cast<int32_t>(data_.pre_encoder);
-        
+
         if (delta > encoder_resolution_ / 2) {
             delta -= encoder_resolution_;
             --data_.total_round;
@@ -108,20 +83,15 @@ void c610::unpack_feedback(const uint8_t *data)
     data_.pre_encoder   = next.encoder;
     data_.total_encoder = total_encoder_ > INT32_MAX ? INT32_MAX : total_encoder_ < INT32_MIN ? INT32_MIN: static_cast<int32_t>(total_encoder_);
 
-    data_.now_current   = math::raw_to_current(dji_motor::signed_value(next.current), current_raw_limit_, current_limit_);
-    data_.now_omega     = math::rpm_to_radian_per_second(next.omega, gear_ratio_);
-    data_.now_angle     = math::encoder_to_radian(total_encoder_, encoder_resolution_, gear_ratio_);
+    data_.now_current = math::raw_to_current(dji_motor::signed_value(next.current), current_raw_limit_, current_limit_);
+    data_.now_omega   = math::rpm_to_radian_per_second(next.omega, gear_ratio_);
+    data_.now_angle   = math::encoder_to_radian(total_encoder_, encoder_resolution_, gear_ratio_);
     k_spin_unlock(&feedback_lock_, key);
 }
 
-/**
- * @brief 校验并解析当前 C610 的反馈帧
- *
- * @param frame CAN 接收帧
- * @return 0 表示已处理 负值表示未匹配或报文错误
- */
-int c610::process_feedback(const fdcan_frame &frame)
-{
+
+
+int c610::process_feedback(const fdcan_frame &frame) {
     if (!initialized_) {
         return -ENODEV;
     }
@@ -135,38 +105,26 @@ int c610::process_feedback(const fdcan_frame &frame)
     return 0;
 }
 
-/**
- * @brief 获取累计成功解包的反馈帧数
- *
- * @return 累计成功解包的反馈帧数
- */
-uint32_t c610::get_feedback_count() const
-{
+
+
+uint32_t c610::get_feedback_count() const {
     return static_cast<uint32_t>(atomic_get(&feedback_count_));
 }
 
-/**
- * @brief 获取最近一帧原始反馈
- *
- * @return 受锁保护的原始反馈快照
- */
-C610RxData c610::get_rx_data() const
-{
+
+
+C610RxData c610::get_rx_data() const {
     const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
-    const C610RxData snapshot = rx_data_;
+    const C610RxData snapshot  = rx_data_;
     k_spin_unlock(&feedback_lock_, key);
     return snapshot;
 }
 
-/**
- * @brief 获取换算后的电机状态
- *
- * @return 受锁保护的电机状态快照
- */
-C610Data c610::get_data() const
-{
+
+
+C610Data c610::get_data() const {
     const k_spinlock_key_t key = k_spin_lock(&feedback_lock_);
-    const C610Data snapshot = data_;
+    const C610Data snapshot    = data_;
     k_spin_unlock(&feedback_lock_, key);
     return snapshot;
 }

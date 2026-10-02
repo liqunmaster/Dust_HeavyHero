@@ -10,7 +10,7 @@
 namespace dji_motor {
 
     bool valid_device(fdcan_device device);
-    
+
     bool valid_id(int motor_id);
 
     uint16_t read_u16(const uint8_t *data);

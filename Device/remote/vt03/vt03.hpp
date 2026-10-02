@@ -1,7 +1,12 @@
 #pragma once
 
+#include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "crc.hpp"
+#include "remote_types.hpp"
+
 
 struct vt03_sample {
     uint16_t channel[4];
@@ -17,11 +22,13 @@ struct vt03_sample {
     bool mouse_left;
     bool mouse_right;
     bool mouse_middle;
-    uint16_t keyboard;
+    remote_keyboard keyboard;
 };
 
+
 class vt03 {
-public:
+    public:
+    
     static constexpr size_t frame_size = 21U;
     static int decode_frame(const uint8_t *frame, size_t length, vt03_sample &sample);
 };

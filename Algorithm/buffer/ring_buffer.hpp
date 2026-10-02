@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// 环形缓冲控制结构
+
 struct ring_buffer_t {
     uint8_t *storage{};
     size_t capacity{};

@@ -1,2 +1,2 @@
-target_sources(app PRIVATE bsp_pwm.c)
+target_sources(app PRIVATE bsp_pwm.cpp)
 target_include_directories(app PUBLIC ${CMAKE_CURRENT_LIST_DIR})

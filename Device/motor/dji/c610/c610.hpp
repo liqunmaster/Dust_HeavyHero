@@ -10,39 +10,41 @@
 
 #include "bsp_fdcan.hpp"
 #include "dji_motor.hpp"
-#include "math.h"
+#include "type_math.hpp"
 
-// C610 电调 ID
+
 enum C610_ID {
-    C610_ID_0x201 = 1,          // 反馈 ID 0x201
-    C610_ID_0x202 = 2,          // 反馈 ID 0x202
-    C610_ID_0x203 = 3,          // 反馈 ID 0x203
-    C610_ID_0x204 = 4,          // 反馈 ID 0x204
-    C610_ID_0x205 = 5,          // 反馈 ID 0x205
-    C610_ID_0x206 = 6,          // 反馈 ID 0x206
-    C610_ID_0x207 = 7,          // 反馈 ID 0x207
-    C610_ID_0x208 = 8,          // 反馈 ID 0x208
+    C610_ID_0x201 = 1,
+    C610_ID_0x202 = 2,
+    C610_ID_0x203 = 3,
+    C610_ID_0x204 = 4,
+    C610_ID_0x205 = 5,
+    C610_ID_0x206 = 6,
+    C610_ID_0x207 = 7,
+    C610_ID_0x208 = 8,
 };
 
+
 struct C610RxData {
-    uint16_t encoder;           // 转子机械角度原始值
-    int16_t omega;              // 转子转速 单位 rpm
-    uint16_t current;           // 实际电流的 16 位补码位模式
-    uint8_t reserved;           // 报文保留字节
-    uint8_t error;              // 电调错误码
+    uint16_t encoder;
+    int16_t omega;
+    uint16_t current;
+    uint8_t reserved;
+    uint8_t error;
 } __attribute__((packed));
 
+
 struct C610Data {
-    float now_angle;            // 输出轴累计角度 单位 rad
-    float now_omega;            // 输出轴角速度 单位 rad/s
-    float now_current;          // 实际电流 单位 A
-    uint32_t pre_encoder;       // 上一帧转子编码器值
-    int32_t total_encoder;      // 转子累计编码器计数
-    int32_t total_round;        // 转子编码器累计跨圈次数
+    float now_angle;
+    float now_omega;
+    float now_current;
+    uint32_t pre_encoder;
+    int32_t total_encoder;
+    int32_t total_round;
 };
 
 class c610 {
-public:
+    public:
     int init(fdcan_device device, C610_ID id, float gear_ratio = 1.0F);
 
     int set_current(float current);
@@ -57,37 +59,54 @@ public:
 
     C610Data get_data() const;
 
+    
     fdcan_device device() const {
         return device_;
     }
 
+    
     uint8_t motor_id() const { return static_cast<uint8_t>(id_); }
 
+    
     uint32_t feedback_id() const {
         return 0x200U + motor_id();
     }
 
+    
     uint32_t command_frame_id() const {
         return motor_id() <= 4U ? 0x200U : 0x1FFU;
     }
 
-private:
-    static constexpr uint16_t encoder_resolution_ = 8192U; // 转子每圈编码器计数
-    static constexpr int16_t current_raw_limit_ = 10000;    // 电流指令原始值满量程
-    static constexpr float current_limit_ = 10.0F;          // 电流物理值满量程
+    private:
+    
+    static constexpr uint16_t encoder_resolution_ = 8192U;
+    
+    static constexpr int16_t current_raw_limit_   = 10000;
+    
+    static constexpr float current_limit_         = 10.0F;
 
     static C610RxData decode_feedback(const uint8_t *data);
 
     void unpack_feedback(const uint8_t *data);
 
-    fdcan_device   device_              = FDCAN_DEVICE_COUNT; // 使用的 CAN 控制器
-    C610_ID        id_                  = C610_ID_0x201;      // 电调 ID
-    float          gear_ratio_          = 1.0F;               // 电机轴与输出轴的减速比
-    bool           initialized_         = false;              // 初始化完成标志
-    C610RxData     rx_data_{};                                // 最近一次有效反馈原始值
-    C610Data       data_{};                                   // 换算后的电机数据
-    int64_t        total_encoder_       = 0;                  // 未截断的累计编码器计数
-    bool           encoder_initialized_ = false;              // 是否已收到首帧编码器值
-    mutable struct k_spinlock feedback_lock_{};               // 反馈数据访问锁
-    atomic_t       feedback_count_{};                         // 累计收到的反馈帧数
+    
+    fdcan_device   device_      = FDCAN_DEVICE_COUNT;
+    
+    C610_ID        id_          = C610_ID_0x201;
+    
+    float          gear_ratio_  = 1.0F;
+    
+    bool           initialized_ = false;
+    
+    C610RxData     rx_data_{};
+    
+    C610Data       data_{};
+    
+    int64_t        total_encoder_       = 0;
+    
+    bool           encoder_initialized_ = false;
+    
+    mutable struct k_spinlock feedback_lock_{};
+    
+    atomic_t       feedback_count_{};
 };

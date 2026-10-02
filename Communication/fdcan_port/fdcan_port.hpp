@@ -10,7 +10,7 @@
 #include "c610.hpp"
 #include "c620.hpp"
 #include "dm_motor.hpp"
-#include "fdcan_chan.hpp"
+#include "fdcan_channel.hpp"
 
 class c610;
 class c620;

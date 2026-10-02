@@ -5,166 +5,119 @@ volatile uint32_t remote_port_total_cycles;
 volatile uint32_t remote_port_max_cycles;
 
 namespace {
-    struct remote_state {
-        struct k_spinlock lock;
-        remote_sample sample;
-        atomic_t feedback_count;
-        bool has_sample;
+    K_SEM_DEFINE(remote_sem, 0, 1);
+    K_THREAD_STACK_DEFINE(remote_stack, 2048);
+    struct k_thread remote_thread;
+    struct k_timer remote_timer;
+    atomic_t feedback_count;
+    bool started;
+
+    
+    struct remote_transport {
+        const struct device *uart;
+        remote_uart_source source;
+        Uart *port;
+    };
+    remote_transport transports[] = {
+        {DEVICE_DT_GET(DT_ALIAS(vt03_uart)), remote_uart_source::uart1, nullptr},
+        {DEVICE_DT_GET(DT_ALIAS(dt7_uart)), remote_uart_source::uart4, nullptr},
     };
 
-    remote_state state{};
-
-    K_SEM_DEFINE(remote_sem, 0, 1);
-
-    K_THREAD_STACK_DEFINE(remote_stack, 1024);
-
-    struct k_thread remote_thread;
     
-    struct k_timer remote_timer;
 
-    void store_sample(const remote_sample &sample)
-    {
-        const k_spinlock_key_t key = k_spin_lock(&state.lock);
-        state.sample = sample;
-        state.has_sample = true;
-        k_spin_unlock(&state.lock, key);
+    int init_uart(remote_transport &transport) {
+        const struct device *uart = transport.uart;
+        transport.port = bsp_uart_get(uart);
+        if (transport.port == nullptr) {
+            return -ENODEV;
+        }
+        if (!device_is_ready(uart)) {
+            return -ENODEV;
+        }
+        struct uart_config config{};
+        int result = uart_config_get(uart, &config);
+        if (result != 0) {
+            return result;
+        }
+        config.baudrate = uart == transports[0].uart ? 921600U : 100000U;
+        config.parity = uart == transports[0].uart ? UART_CFG_PARITY_NONE : UART_CFG_PARITY_EVEN;
+        config.data_bits = UART_CFG_DATA_BITS_8;
+        config.stop_bits = UART_CFG_STOP_BITS_1;
+        config.flow_ctrl = UART_CFG_FLOW_CTRL_NONE;
+        result = uart_configure(uart, &config);
+        return result == 0 ? transport.port->init() : result;
     }
 
-    #ifdef CONFIG_REMOTE_DEVICE_DT7
-        static constexpr size_t remote_frame_size = dt7::frame_size;
-        static const struct device *const remote_uart = DEVICE_DT_GET(DT_ALIAS(dt7_uart));
-        uint8_t frame[remote_frame_size];
-        size_t frame_length = 0U;
+    
 
-        int init_remote_uart()
-        {
-            if (!device_is_ready(remote_uart)) {
-                return -ENODEV;   
+    void receive_uart(remote_transport &transport) {
+        for (size_t batch = 0U; batch < 4U; ++batch) {
+            remote_rx_chunk chunk{};
+            const int count = transport.port->receive(chunk.bytes, sizeof(chunk.bytes));
+            if (count == 0) {
+                break;
             }
-
-            struct uart_config config{};
-            int ret = uart_config_get(remote_uart, &config);
-            if (ret != 0) {
-                return ret;
+            chunk.source = transport.source;
+            chunk.timestamp_ms = k_uptime_get_32();
+            chunk.discontinuity = count < 0;
+            chunk.length = count > 0 ? static_cast<uint16_t>(count) : 0U;
+            input_process_chunk(chunk);
+            if (count < 0) {
+                break;
             }
-            config.parity = static_cast<uart_config_parity>(DT_ENUM_IDX(DT_ALIAS(dt7_uart), parity));
-            ret = uart_configure(remote_uart, &config);
-            if (ret != 0)  {
-                return ret;
-            }
-            return bsp_uart_init(remote_uart);
+            atomic_inc(&feedback_count);
         }
+    }
 
-        void process_remote_byte(uint8_t byte)
-        {
-            frame[frame_length++] = byte;
-            if (frame_length != remote_frame_size) {
-                return;
-            }
-            frame_length = 0U;
-            atomic_inc(&state.feedback_count);
+    
 
-            remote_sample decoded{};
-            if (dt7::decode_frame(frame, sizeof(frame), decoded) == 0) {
-                store_sample(decoded);
-            }
-        }
-
-    #elif defined(CONFIG_REMOTE_DEVICE_VT03)
-        static constexpr size_t remote_frame_size = vt03::frame_size;
-        static const struct device *const remote_uart = DEVICE_DT_GET(DT_ALIAS(vt03_uart));
-        uint8_t frame[remote_frame_size];
-        size_t frame_length = 0U;
-
-        int init_remote_uart()
-        {
-            if (!device_is_ready(remote_uart)) return -ENODEV;
-            return bsp_uart_init(remote_uart);
-        }
-
-        void process_remote_byte(uint8_t byte)
-        {
-            if (frame_length == 0U && byte != 0xA9U) return;
-            if (frame_length == 1U && byte != 0x53U) {
-                frame_length = byte == 0xA9U ? 1U : 0U;
-                return;
-            }
-
-            frame[frame_length++] = byte;
-            if (frame_length != remote_frame_size) {
-                return;
-            }
-            frame_length = 0U;
-            atomic_inc(&state.feedback_count);
-
-            remote_sample decoded{};
-            if (vt03::decode_frame(frame, sizeof(frame), decoded) == 0) {
-                store_sample(decoded);
-            }
-        }
-    #endif
-
-    void remote_timer_callback(struct k_timer *)
-    {
+    void timer_callback(struct k_timer *) {
         k_sem_give(&remote_sem);
     }
 
-    void remote_port_process()
-    {
-        uint8_t bytes[remote_frame_size * 4U];
-        int count;
-        while ((count = bsp_uart_receive(bytes, sizeof(bytes))) > 0) {
-            for (int i = 0; i < count; ++i) {
-                process_remote_byte(bytes[i]);
-            }
-        }
-        if (count < 0) {
-            frame_length = 0U;
-        }
-    }
+    
 
-    void remote_thread_entry(void *, void *, void *)
-    {
-        while (1) {
+    void thread_entry(void *, void *, void *) {
+        while (true) {
             k_sem_take(&remote_sem, K_FOREVER);
-            const uint32_t start_cycles = k_cycle_get_32();
-            remote_port_process();
-            const uint32_t elapsed_cycles = k_cycle_get_32() - start_cycles;
+            const uint32_t start = k_cycle_get_32();
+            for (auto &transport : transports) {
+                receive_uart(transport);
+            }
+            input_expire_partial_frames(k_uptime_get_32());
+            const uint32_t elapsed = k_cycle_get_32() - start;
             ++remote_port_loop_count;
-            remote_port_total_cycles += elapsed_cycles;
-            if (elapsed_cycles > remote_port_max_cycles) remote_port_max_cycles = elapsed_cycles;
+            remote_port_total_cycles += elapsed;
+            if (elapsed > remote_port_max_cycles) {
+                remote_port_max_cycles = elapsed;
+            }
         }
     }
 }
 
-int remote_port_init()
-{
-    const int result = init_remote_uart();
-    if (result != 0) {
-        return result;
-    }
 
-    k_timer_init(&remote_timer, remote_timer_callback, nullptr);
+
+int remote_port_init() {
+    if (started) {
+        return 0;
+    }
+    for (auto &transport : transports) {
+        const int result = init_uart(transport);
+        if (result != 0) {
+            return result;
+        }
+    }
+    k_timer_init(&remote_timer, timer_callback, nullptr);
     k_thread_create(&remote_thread, remote_stack, K_THREAD_STACK_SIZEOF(remote_stack),
-                    remote_thread_entry, nullptr, nullptr, nullptr,
-                    K_PRIO_PREEMPT(5), 0, K_NO_WAIT);
+                    thread_entry, nullptr, nullptr, nullptr, K_PRIO_PREEMPT(5), 0, K_NO_WAIT);
+    k_thread_name_set(&remote_thread, "remote_rx");
+    started = true;
     k_timer_start(&remote_timer, K_MSEC(1), K_MSEC(1));
     return 0;
 }
 
-int remote_port_get_sample(remote_sample &sample)
-{
-    const k_spinlock_key_t key = k_spin_lock(&state.lock);
-    if (!state.has_sample) {
-        k_spin_unlock(&state.lock, key);
-        return -ENODATA;
-    }
-    sample = state.sample;
-    k_spin_unlock(&state.lock, key);
-    return 0;
-}
 
-uint32_t remote_port_feedback_count()
-{
-    return static_cast<uint32_t>(atomic_get(&state.feedback_count));
+
+uint32_t remote_port_feedback_count() {
+    return static_cast<uint32_t>(atomic_get(&feedback_count));
 }

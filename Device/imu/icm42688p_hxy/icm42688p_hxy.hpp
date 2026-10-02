@@ -4,7 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
+
+#include "bsp_gpio.h"
+#include "bsp_spi.hpp"
 #include "icm42688p_hxy_reg.h"
+
 
 struct icm42688phxy_sample {
     int16_t accel_raw[3];
@@ -12,9 +17,28 @@ struct icm42688phxy_sample {
     int16_t temperature_raw;
 };
 
+
 class icm42688phxy final {
-public:
+    public:
+    
     static constexpr size_t frame_size = ICM42688PHXY_SENSOR_FRAME_SIZE + ICM42688PHXY_TEMP_FRAME_SIZE;
 
-    static int decode_frame(const uint8_t *frame, size_t length, icm42688phxy_sample &sample);
+    int init();
+    int wait_data_ready(k_timeout_t timeout);
+    int read_sample(icm42688phxy_sample &sample);
+
+    static int decode_frame(const uint8_t *frame, size_t length,
+                            icm42688phxy_sample &sample);
+
+    private:
+    int read_registers(uint8_t address, uint8_t *data, size_t length);
+    int write_register(uint8_t address, uint8_t value);
+    int configure_register(uint8_t address, uint8_t value, uint32_t settle_ms);
+
+    
+    spi spi_{};
+    
+    bsp_gpio_irq int1_irq_{};
+    
+    bool initialized_{false};
 };

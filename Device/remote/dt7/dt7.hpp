@@ -4,16 +4,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// DT7 解包数据
+
 struct dt7_sample {
     uint16_t channel[4];
     uint8_t switch_left;
     uint8_t switch_right;
 };
 
-class dt7 {
-public:
 
+class dt7 {
+    public:
+
+    
     static constexpr size_t frame_size = 18U;
 
     static int decode_frame(const uint8_t *frame, size_t length, dt7_sample &sample);

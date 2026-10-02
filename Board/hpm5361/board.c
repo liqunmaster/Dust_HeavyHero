@@ -1,7 +1,5 @@
-/*
- * Copyright (c) 2026 HPMicro
- * SPDX-License-Identifier: Apache-2.0
- */
+
+
 
 #include <errno.h>
 #include <zephyr/devicetree.h>
@@ -12,6 +10,8 @@
 #include <hpm_iomux.h>
 #include <hpm_pllctlv2_drv.h>
 #include <hpm_soc.h>
+
+
 
 static int hpm5361_board_clock_init(void)
 {
@@ -25,7 +25,7 @@ static int hpm5361_board_clock_init(void)
 SYS_INIT(hpm5361_board_clock_init, PRE_KERNEL_2, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
 #if defined(CONFIG_HPM_BOOT_HEADER)
-/* BootROM reads this XPI option block from internal flash offset 0x400. */
+
 __attribute__((section(".nor_cfg_option"), used, aligned(4)))
 const uint32_t hpm5361_nor_cfg_option[4] = {
 	DT_PROP(DT_CHOSEN(zephyr_flash), nor_cfg_opt_hdr),
@@ -35,6 +35,8 @@ const uint32_t hpm5361_nor_cfg_option[4] = {
 };
 #endif
 
+
+
 void c_startup(void)
 {
 	HPM_IOC->PAD[IOC_PAD_PA04].FUNC_CTL = IOC_PA04_FUNC_CTL_JTAG_TDO;
@@ -43,6 +45,8 @@ void c_startup(void)
 	HPM_IOC->PAD[IOC_PAD_PA07].FUNC_CTL = IOC_PA07_FUNC_CTL_JTAG_TMS;
 	HPM_IOC->PAD[IOC_PAD_PA08].FUNC_CTL = IOC_PA08_FUNC_CTL_JTAG_TRST;
 }
+
+
 
 void sys_arch_reboot(int type)
 {

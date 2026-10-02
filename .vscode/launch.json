@@ -6,6 +6,8 @@
             "type": "cortex-debug",
             "request": "launch",
             "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build",
+            "postDebugTask": "Reset Target",
             "executable": "${workspaceFolder}/build/zephyr/Dust_HeavyHero.elf",
             "servertype": "openocd",
             "serverpath": "D:/MCU/hpm/tools/openocd/openocd.exe",
@@ -14,9 +16,7 @@
                 "D:/MCU/hpm/hpm_sdk/boards/openocd"
             ],
             "configFiles": [
-                "D:/MCU/hpm/hpm_sdk/boards/openocd/probes/cmsis_dap.cfg",
-                "D:/MCU/hpm/hpm_sdk/boards/openocd/soc/hpm5300.cfg",
-                "D:/MCU/hpm/hpm_sdk/boards/openocd/boards/hpm5300evk.cfg"
+                "${workspaceFolder}/Board/hpm5361/hpm5361.cfg"
             ],
             "openOCDLaunchCommands": [
                 "adapter speed 500"

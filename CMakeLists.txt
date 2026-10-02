@@ -11,20 +11,22 @@ set(CONF_FILE
     ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_pwm/pwm.conf
     ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_spi/spi.conf
     ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_uart/uart.conf
+    ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_usb/usb.conf
     ${CMAKE_CURRENT_SOURCE_DIR}/Topic/topic.conf
-    ${CMAKE_CURRENT_SOURCE_DIR}/Device/remote/remote.conf
     ${CMAKE_CURRENT_SOURCE_DIR}/Device/imu/imu.conf
     CACHE STRING "Application configuration files" FORCE
 )
 set(DTC_OVERLAY_FILE
     ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_fdcan/fdcan.overlay
-    ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_pwm/pwm.overlay
+    ${CMAKE_CURRENT_SOURCE_DIR}/Device/ws2812b/ws2812b.overlay
     ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_uart/uart.overlay
+    ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/bsp_usb/usb.overlay
     ${CMAKE_CURRENT_SOURCE_DIR}/Device/remote/remote.overlay
     ${CMAKE_CURRENT_SOURCE_DIR}/Device/imu/imu.overlay
     ${CMAKE_CURRENT_SOURCE_DIR}/Device/motor/dji/c610/c610.overlay
     ${CMAKE_CURRENT_SOURCE_DIR}/Device/motor/dji/c620/c620.overlay
     ${CMAKE_CURRENT_SOURCE_DIR}/Device/motor/dm/dm.overlay
+    ${CMAKE_CURRENT_SOURCE_DIR}/Device/motor/servo/servo.overlay
     CACHE STRING "Application devicetree overlays" FORCE
 )
 
@@ -40,13 +42,17 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(Dust_HeavyHero)
 
+zephyr_compile_options(-Ofast)
+
 add_subdirectory(Algorithm)
 add_subdirectory(App)
 add_subdirectory(Bsp)
+add_subdirectory(Communication)
+add_subdirectory(daemon_supervisor)
 add_subdirectory(Device)
 add_subdirectory(Module)
+add_subdirectory(ThirdParty)
 add_subdirectory(Topic)
-add_subdirectory(Communication)
 
 set_source_files_properties(
     "D:/MCU/hpm/zephyr_sdk_glue/drivers/serial/uart_hpmicro.c"

@@ -3,235 +3,282 @@
 extern "C" void __stdout_hook_install(int (*hook)(int));
 
 namespace {
-    // UART 控制器运行上下文
-    struct uart_context {
-        const struct device *device;
-        ring_buffer_t rx_buffer;
-        ring_buffer_t tx_buffer;
-        uint8_t rx_storage[512];
-        uint8_t tx_storage[128];
-        uint8_t (*rx_dma)[128];
-        uint8_t *tx_dma;
-        bool rx_owned[2];
-        bool rx_active;
-        bool ready;
-        atomic_t rx_overflow;
-        atomic_t tx_busy;
-        size_t tx_count;
-        int tx_error;
-        struct k_mutex tx_lock;
-        struct k_sem tx_done;
-    };
+    
+    UartDmaBuffers dma_buffers[7] __attribute__((section("AHB_SRAM"), aligned(4)));
 
-    struct uart_dma_buffers {
-        uint8_t rx[2][128];
-        uint8_t tx[128];
-    };
+    
 
-    static uart_dma_buffers dma_buffers[2] __attribute__((section("AHB_SRAM"), aligned(4)));
-    static uart_context context;
-    static uart_context console_context;
-
-    /**
-     * @brief 
-     * 
-     * @param dev 
-     * @param event 
-     */
-    static void uart_callback(const struct device *dev, struct uart_event *event, void *user_data)
-    {
-        auto *ctx = static_cast<uart_context *>(user_data);
-        if (ctx == nullptr || dev != ctx->device) return;
-        const unsigned int key = irq_lock();
-        switch (event->type) {
-        case UART_RX_RDY:
-            if (ring_buffer_write(&ctx->rx_buffer, event->data.rx.buf + event->data.rx.offset, event->data.rx.len) != event->data.rx.len) {
-                atomic_set(&ctx->rx_overflow, 1);
-            }
-        break;
-        case UART_RX_BUF_REQUEST:
-            for (size_t i = 0; i < 2; ++i) {
-                if (!ctx->rx_owned[i]) {
-                    ctx->rx_owned[i] = true;
-                    if (uart_rx_buf_rsp(dev, ctx->rx_dma[i], sizeof(ctx->rx_dma[i])) != 0) {
-                        ctx->rx_owned[i] = false;
-                    }
-                    break;
-                }
-            }
-            break;
-        case UART_RX_BUF_RELEASED:
-            for (size_t i = 0; i < 2; ++i) {
-                if (event->data.rx_buf.buf == ctx->rx_dma[i]) ctx->rx_owned[i] = false;
-            }
-            break;
-        case UART_RX_DISABLED:
-            ctx->rx_active = false;
-            break;
-        case UART_TX_DONE:
-        case UART_TX_ABORTED:
-            ctx->tx_count = event->data.tx.len;
-            ctx->tx_error = event->type == UART_TX_DONE ? 0 : -EIO;
-            atomic_clear(&ctx->tx_busy);
-            k_sem_give(&ctx->tx_done);
-            break;
-        default:
-            break;
-        }
-        irq_unlock(key);
-    }
-
-    /**
-     * @brief 
-     * 
-     * @return int 
-     */
-    static int start_rx(uart_context *ctx)
-    {
-        ctx->rx_owned[0] = true;
-        ctx->rx_owned[1] = false;
-        ctx->rx_active = true;
-        const int ret = uart_rx_enable(ctx->device, ctx->rx_dma[0], sizeof(ctx->rx_dma[0]), 1000);
-        if (ret != 0) ctx->rx_active = false;
-        return ret;
-    }
-
-    /**
-     * @brief 
-     * 
-     * @param character 
-     * @return int 
-     */
-    static int stdout_character(int character)
-    {
+    int stdout_character(int character) {
         const uint8_t byte = static_cast<uint8_t>(character);
-        return bsp_uart_transmit(&byte, 1, DEVICE_DT_GET(DT_NODELABEL(uart3))) == 1 ? byte : EOF;
+        return uart3.transmit(&byte, 1U) == 1 ? byte : EOF;
     }
+}
 
-} 
 
-/**
- * @brief 
- * 
- * @param device 
- * @return int 
- */
-int bsp_uart_init(const struct device *device)
-{
-    if (k_is_in_isr()) return -EWOULDBLOCK;
-    if (device == nullptr) device = DEVICE_DT_GET(DT_NODELABEL(uart3));
-    const bool is_console = device == DEVICE_DT_GET(DT_NODELABEL(uart3));
-    uart_context *ctx = is_console ? &console_context : &context;
-    if (ctx->ready) return ctx->device == device ? 0 : -EBUSY;
-    if (!device_is_ready(device)) return -ENODEV;
-    ctx->device = device;
-    uart_dma_buffers *dma = &dma_buffers[is_console ? 0 : 1];
-    ctx->rx_dma = dma->rx;
-    ctx->tx_dma = dma->tx;
-    k_mutex_init(&ctx->tx_lock);
-    k_sem_init(&ctx->tx_done, 0, 1);
-    ring_buffer_init(&ctx->rx_buffer, ctx->rx_storage, sizeof(ctx->rx_storage));
-    ring_buffer_init(&ctx->tx_buffer, ctx->tx_storage, sizeof(ctx->tx_storage));
-    int ret = uart_callback_set(device, uart_callback, ctx);
-    if (ret != 0) return ret;
-    if (!is_console) {
-        ret = start_rx(ctx);
-        if (ret != 0) {
-            (void)uart_callback_set(device, nullptr, nullptr);
-            return ret;
+Uart uart0{DEVICE_DT_GET(DT_NODELABEL(uart0)), dma_buffers[0]};
+Uart uart1{DEVICE_DT_GET(DT_NODELABEL(uart1)), dma_buffers[1]};
+Uart uart2{DEVICE_DT_GET(DT_NODELABEL(uart2)), dma_buffers[2]};
+Uart uart3{DEVICE_DT_GET(DT_NODELABEL(uart3)), dma_buffers[3]};
+Uart uart4{DEVICE_DT_GET(DT_NODELABEL(uart4)), dma_buffers[4]};
+Uart uart5{DEVICE_DT_GET(DT_NODELABEL(uart5)), dma_buffers[5]};
+Uart uart6{DEVICE_DT_GET(DT_NODELABEL(uart6)), dma_buffers[6]};
+
+
+
+Uart *bsp_uart_get(const struct device *device) {
+    if (device == nullptr) {
+        return &uart3;
+    }
+    Uart *const ports[] = {&uart0, &uart1, &uart2, &uart3, &uart4, &uart5, &uart6};
+    for (auto *port : ports) {
+        if (port->device() == device) {
+            return port;
         }
     }
-    ctx->ready = true;
-    if (is_console) __stdout_hook_install(stdout_character);
+    return nullptr;
+}
+
+
+
+bool Uart::is_ready() const {
+    return atomic_get(&init_state_) == 2;
+}
+
+
+
+int Uart::init() {
+    if (k_is_in_isr()) {
+        return -EWOULDBLOCK;
+    }
+    if (is_ready()) {
+        return 0;
+    }
+    if (!atomic_cas(&init_state_, 0, 1)) {
+        return -EBUSY;
+    }
+    if (device_ == nullptr || !device_is_ready(device_)) {
+        atomic_clear(&init_state_);
+        return -ENODEV;
+    }
+    k_mutex_init(&tx_lock_);
+    k_sem_init(&tx_done_, 0, 1);
+    ring_buffer_init(&rx_buffer_, rx_storage_, sizeof(rx_storage_));
+    ring_buffer_init(&tx_buffer_, tx_storage_, sizeof(tx_storage_));
+    atomic_clear(&rx_overflow_);
+    atomic_clear(&tx_busy_);
+    rx_active_ = false;
+    rx_owned_[0] = false;
+    rx_owned_[1] = false;
+
+    int result = uart_callback_set(device_, uart_callback, this);
+    if (result != 0) {
+        atomic_clear(&init_state_);
+        return result;
+    }
+    
+    
+    if (this != &uart3) {
+        result = start_rx();
+        if (result != 0) {
+            (void)uart_callback_set(device_, nullptr, nullptr);
+            atomic_clear(&init_state_);
+            return result;
+        }
+    }
+    atomic_set(&init_state_, 2);
+    if (this == &uart3) {
+        __stdout_hook_install(stdout_character);
+    }
     return 0;
 }
 
-/**
- * @brief 
- * 
- * @param data 
- * @param length 
- * @return int 
- */
-int bsp_uart_receive(void *data, size_t length)
-{
-    if (k_is_in_isr()) return -EWOULDBLOCK;
-    uart_context *ctx = context.ready ? &context : &console_context;
-    if (!ctx->ready) return -ENODEV;
-    if (data == nullptr && length != 0) return -EINVAL;
-    if (length > INT_MAX) return -EMSGSIZE;
-    if (length == 0) return 0;
+
+
+void Uart::uart_callback(const struct device *device, struct uart_event *event, void *user_data) {
+    auto *port = static_cast<Uart *>(user_data);
+    if (port == nullptr || event == nullptr || device != port->device_) {
+        return;
+    }
     const unsigned int key = irq_lock();
-    const int ret = ctx->rx_active ? 0 : start_rx(ctx);
-    const bool overflow = atomic_set(&ctx->rx_overflow, 0) != 0;
-    const int count = overflow ? -ENOBUFS :
-        static_cast<int>(ring_buffer_read(&ctx->rx_buffer, data, length));
+    port->handle_event(*event);
     irq_unlock(key);
-    return count != 0 ? count : ret;
 }
 
-/**
- * @brief 
- * 
- * @param data 
- * @param length 
- * @return int 
- */
-int bsp_uart_transmit(const void *data, size_t length, const struct device *device)
-{
-    if (k_is_in_isr()) return -EWOULDBLOCK;
-    uart_context *ctx = device == nullptr ? (context.ready ? &context : &console_context) : device == DEVICE_DT_GET(DT_NODELABEL(uart3)) ? &console_context : device == context.device ? &context : nullptr;
-    if (ctx == nullptr) return -ENODEV;
-    if (!ctx->ready) return -ENODEV;
-    if (data == nullptr && length != 0) return -EINVAL;
-    if (length > INT_MAX) return -EMSGSIZE;
-    if (length == 0) return 0;
-    k_mutex_lock(&ctx->tx_lock, K_FOREVER);
+
+
+void Uart::handle_event(const struct uart_event &event) {
+    switch (event.type) {
+    case UART_RX_RDY:
+        if (ring_buffer_write(&rx_buffer_, event.data.rx.buf + event.data.rx.offset, event.data.rx.len) != event.data.rx.len) {
+            atomic_set(&rx_overflow_, 1);
+        }
+        break;
+    case UART_RX_BUF_REQUEST:
+        for (size_t i = 0U; i < 2U; ++i) {
+            if (!rx_owned_[i]) {
+                rx_owned_[i] = true;
+                if (uart_rx_buf_rsp(device_, dma_.rx[i], sizeof(dma_.rx[i])) != 0) {
+                    rx_owned_[i] = false;
+                }
+                break;
+            }
+        }
+        break;
+    case UART_RX_BUF_RELEASED:
+        for (size_t i = 0U; i < 2U; ++i) {
+            if (event.data.rx_buf.buf == dma_.rx[i]) {
+                rx_owned_[i] = false;
+            }
+        }
+        break;
+    case UART_RX_DISABLED:
+        rx_active_ = false;
+        atomic_set(&rx_overflow_, 1);
+        break;
+    case UART_RX_STOPPED:
+        atomic_set(&rx_overflow_, 1);
+        break;
+    case UART_TX_DONE:
+    case UART_TX_ABORTED:
+        tx_count_ = event.data.tx.len;
+        tx_error_ = event.type == UART_TX_DONE ? 0 : -EIO;
+        atomic_clear(&tx_busy_);
+        k_sem_give(&tx_done_);
+        break;
+    default:
+        break;
+    }
+}
+
+
+
+int Uart::start_rx() {
+    const unsigned int key = irq_lock();
+    rx_owned_[0] = true;
+    rx_owned_[1] = false;
+    rx_active_ = true;
+    const int result = uart_rx_enable(device_, dma_.rx[0], sizeof(dma_.rx[0]), 1000);
+    if (result != 0) {
+        rx_active_ = false;
+        rx_owned_[0] = false;
+    }
+    irq_unlock(key);
+    return result;
+}
+
+
+
+int Uart::receive(void *data, size_t length) {
+    if (k_is_in_isr()) {
+        return -EWOULDBLOCK;
+    }
+    if (!is_ready()) {
+        return -ENODEV;
+    }
+    if (data == nullptr && length != 0U) {
+        return -EINVAL;
+    }
+    if (length > INT_MAX) {
+        return -EMSGSIZE;
+    }
+    if (length == 0U) {
+        return 0;
+    }
+    const unsigned int key = irq_lock();
+    const int result = rx_active_ ? 0 : start_rx();
+    const bool overflow = atomic_set(&rx_overflow_, 0) != 0;
+    if (overflow) {
+        ring_buffer_clear(&rx_buffer_);
+    }
+    const int count = overflow ? -ENOBUFS :
+        static_cast<int>(ring_buffer_read(&rx_buffer_, data, length));
+    irq_unlock(key);
+    return count != 0 ? count : result;
+}
+
+
+
+int Uart::transmit(const void *data, size_t length) {
+    if (k_is_in_isr()) {
+        return -EWOULDBLOCK;
+    }
+    if (!is_ready()) {
+        return -ENODEV;
+    }
+    if (data == nullptr && length != 0U) {
+        return -EINVAL;
+    }
+    if (length > INT_MAX) {
+        return -EMSGSIZE;
+    }
+    if (length == 0U) {
+        return 0;
+    }
+
+    k_mutex_lock(&tx_lock_, K_FOREVER);
     const auto *bytes = static_cast<const uint8_t *>(data);
-    size_t sent = 0;
-    int ret = atomic_get(&ctx->tx_busy) ? -EBUSY : 0;
-    while (ret == 0 && sent < length) {
-        const int64_t deadline = k_uptime_get() + 1000;
-        while (uart_irq_tx_complete(ctx->device) == 0 && k_uptime_get() < deadline) {
-            k_usleep(50);
-        }
-        if (uart_irq_tx_complete(ctx->device) <= 0) {
-            ret = -ETIMEDOUT;
+    size_t sent = 0U;
+    int result = atomic_get(&tx_busy_) ? -EBUSY : 0;
+    while (result == 0 && sent < length) {
+        const size_t chunk = ring_buffer_write(&tx_buffer_, bytes + sent, length - sent);
+        if (chunk == 0U) {
+            result = -ENOBUFS;
             break;
         }
-        const size_t chunk = ring_buffer_write(&ctx->tx_buffer, bytes + sent, length - sent);
-        ring_buffer_read(&ctx->tx_buffer, ctx->tx_dma, chunk);
-        k_sem_reset(&ctx->tx_done);
-        ctx->tx_count = 0;
-        ctx->tx_error = 0;
-        atomic_set(&ctx->tx_busy, 1);
-        ret = uart_tx(ctx->device, ctx->tx_dma, chunk, SYS_FOREVER_US);
-        if (ret != 0) {
-            atomic_clear(&ctx->tx_busy);
+        ring_buffer_read(&tx_buffer_, dma_.tx, chunk);
+        k_sem_reset(&tx_done_);
+        tx_count_ = 0U;
+        tx_error_ = 0;
+        atomic_set(&tx_busy_, 1);
+        result = uart_tx(device_, dma_.tx, chunk, SYS_FOREVER_US);
+        if (result != 0) {
+            atomic_clear(&tx_busy_);
             break;
         }
-        if (k_sem_take(&ctx->tx_done, K_MSEC(1000)) != 0) {
+        if (k_sem_take(&tx_done_, K_MSEC(1000)) != 0) {
             const unsigned int key = irq_lock();
-            if (atomic_get(&ctx->tx_busy)) {
-                (void)uart_tx_abort(ctx->device);
-                ret = -ETIMEDOUT;
+            if (atomic_get(&tx_busy_)) {
+                (void)uart_tx_abort(device_);
+                result = -ETIMEDOUT;
             }
             irq_unlock(key);
         }
-        sent += ctx->tx_count;
-        if (ret == 0) ret = ctx->tx_error;
-        if (ret == 0 && ctx->tx_count != chunk) ret = -EIO;
+        sent += tx_count_;
+        if (result == 0) {
+            result = tx_error_;
+        }
+        if (result == 0 && tx_count_ != chunk) {
+            result = -EIO;
+        }
     }
-    k_mutex_unlock(&ctx->tx_lock);
-    return sent != 0 ? static_cast<int>(sent) : ret;
+    k_mutex_unlock(&tx_lock_);
+    return sent != 0U ? static_cast<int>(sent) : result;
 }
 
-/**
- * @brief printf 函数
- * 
- */
-extern "C" int printf(const char *format, ...)
-{
+
+
+int bsp_uart_init(const struct device *device) {
+    auto *port = bsp_uart_get(device);
+    return port != nullptr ? port->init() : -ENODEV;
+}
+
+
+
+int bsp_uart_receive(void *data, size_t length, const struct device *device) {
+    auto *port = bsp_uart_get(device);
+    return port != nullptr ? port->receive(data, length) : -ENODEV;
+}
+
+
+
+int bsp_uart_transmit(const void *data, size_t length, const struct device *device) {
+    auto *port = bsp_uart_get(device);
+    return port != nullptr ? port->transmit(data, length) : -ENODEV;
+}
+
+
+
+extern "C" int printf(const char *format, ...) {
     if (k_is_in_isr()) {
         errno = EWOULDBLOCK;
         return EOF;
@@ -241,15 +288,17 @@ extern "C" int printf(const char *format, ...)
     va_start(args, format);
     const int length = vsnprintf(message, sizeof(message), format, args);
     va_end(args);
-    if (length < 0) return length;
+    if (length < 0) {
+        return length;
+    }
     if (static_cast<size_t>(length) >= sizeof(message)) {
         errno = EMSGSIZE;
         return EOF;
     }
-    const int ret = bsp_uart_transmit(message, length, DEVICE_DT_GET(DT_NODELABEL(uart3)));
-    if (ret != length) {
-        errno = ret < 0 ? -ret : EIO;
+    const int result = uart3.transmit(message, length);
+    if (result != length) {
+        errno = result < 0 ? -result : EIO;
         return EOF;
     }
-    return ret;
+    return result;
 }
